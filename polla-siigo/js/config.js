@@ -44,9 +44,9 @@ export const CONFIG = {
      plan gratuito 100 peticiones/día.
   ---------------------------------------------------------- */
   API_FUTBOL: {
-    proxyUrl: 'https://v3.football.api-sports.io', // URL directa de la API
-    apiKey: '3f88991155250f77b5cca0626b9a007b',   // Tu llave directa
-    intervaloSegundos: 60,        // frecuencia de refresco con partidos en vivo
+    proxyUrl: 'https://polla-proxy.polla-proxy-siigo.workers.dev', // Worker desplegado
+    apiKey: '',   // La llave NO va aquí cuando usas el proxy seguro
+    intervaloSegundos: 120,       // frecuencia de refresco con partidos en vivo (ajustada para evitar rate limits)
     sincronizaCalendario: true    // permite al admin traer fechas/horas oficiales
   },
 

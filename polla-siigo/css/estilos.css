@@ -246,6 +246,29 @@ a:hover { text-decoration: underline; }
 
 /* Pronóstico con steppers */
 .pronostico { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; padding-top: 4px; border-top: 1px dashed var(--linea); }
+
+.mini-input { max-width: 180px; }
+
+@media (max-width: 760px) {
+  .barra__fila { flex-direction: column; align-items: stretch; gap: 10px; }
+  .nav { width: 100%; justify-content: center; gap: 6px; }
+  .usuario-mini { width: 100%; justify-content: space-between; }
+  .heroe { padding-top: 32px; }
+  .panel--relleno { padding: 16px; }
+  .tabs { gap: 4px; }
+  .tabs button { padding: 10px 12px; font-size: 13px; }
+  .chips { gap: 6px; }
+  .chip { padding: 9px 12px; font-size: 13px; }
+  .partido { padding: 14px; }
+  .partido__meta { gap: 6px; font-size: 12px; }
+  .marcador { min-width: 76px; padding: 12px 14px; font-size: 24px; }
+  .stepper { gap: 6px; }
+  .stepper button { width: 30px; height: 30px; font-size: 16px; }
+  .stepper input { width: 46px; font-size: 20px; }
+  .campeones { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+  .podio { grid-template-columns: 1fr; }
+  .pie { padding-bottom: 24px; }
+}
 .stepper { display: flex; align-items: center; gap: 8px; }
 .stepper button {
   width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--linea);
@@ -326,6 +349,9 @@ table.tabla { width: 100%; border-collapse: collapse; background: var(--superfic
 .aviso--dorado { background: rgba(245,184,0,.1); border-color: rgba(245,184,0,.45); }
 .aviso--rojo { background: rgba(224,53,75,.12); border-color: rgba(224,53,75,.45); }
 .aviso--verde { background: rgba(31,168,77,.12); border-color: rgba(31,168,77,.45); }
+
+.partido__analisis { font-size: 13px; color: var(--tinta-3); margin: 8px 12px; border-radius: 10px; padding: 8px 10px; }
+.etiq { font-size: 12px; color: var(--sub); padding: 2px 6px; border-radius:6px; background: rgba(0,0,0,0.04); }
 
 .toasts { position: fixed; right: 16px; bottom: 16px; z-index: 200; display: flex; flex-direction: column; gap: 10px; }
 .toast {

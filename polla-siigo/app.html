@@ -239,12 +239,13 @@ import { CONFIG } from './js/config.js';
           <span class="empuja">🏟 ${U.esc(p.estadio || p.sede)}</span>
         </div>
         <div class="partido__centro">
-          <div class="equipo"><span class="bandera">${L.b || '⚽'}</span><span class="nombre">${U.esc(p.local ? L.n : p.etiqL)}</span></div>
+          <div class="equipo"><span class="bandera">${p.local ? (L.b || '⚽') : `<span class="etiq">${U.esc(p.etiqL)}</span>`}</span><span class="nombre">${U.esc(p.local ? L.n : p.etiqL)}</span></div>
           ${centro}
-          <div class="equipo equipo--v"><span class="nombre">${U.esc(p.visitante ? V.n : p.etiqV)}</span><span class="bandera">${V.b || '⚽'}</span></div>
+          <div class="equipo equipo--v"><span class="nombre">${U.esc(p.visitante ? V.n : p.etiqV)}</span><span class="bandera">${p.visitante ? (V.b || '⚽') : `<span class="etiq">${U.esc(p.etiqV)}</span>`}</span></div>
         </div>
         ${zona}
-        ${renderStats(p.id)}
+          ${renderPrediction(p)}
+          ${renderStats(p.id)}
       </article>`;
   }
 
@@ -266,6 +267,77 @@ import { CONFIG } from './js/config.js';
       <span style="margin-left:auto;color:var(--sub)" class="sub">${preds.length} pron.</span>
     </div>`;
   }
+
+    /* --- ANÁLISIS / PREDICCIÓN RÁPIDA (forma reciente + H2H) ------- */
+    function renderPrediction(p) {
+      try {
+        if (!p || !p.id) return '';
+        const local = p.local, visitante = p.visitante;
+        if (!local || !visitante) return '';
+
+        // Filtrar solo partidos con resultado final
+        const históricos = partidosEf().filter(m => resultados[m.id] && resultados[m.id].estado === 'finalizado')
+          .sort((a, b) => new Date(b.utc || b.fecha) - new Date(a.utc || a.fecha));
+
+        function recentMatches(team, limit = 5) {
+          return históricos.filter(m => m.local === team || m.visitante === team)
+            .slice(0, limit)
+            .map(m => {
+              const r = resultados[m.id];
+              if (!r) return null;
+              if (m.local === team) {
+                const gf = Number(r.gl || 0), ga = Number(r.gv || 0);
+                return { gf, ga, res: gf > ga ? 'W' : gf === ga ? 'D' : 'L' };
+              }
+              const gf = Number(r.gv || 0), ga = Number(r.gl || 0);
+              return { gf, ga, res: gf > ga ? 'W' : gf === ga ? 'D' : 'L' };
+            }).filter(Boolean);
+        }
+
+        const recL = recentMatches(local, 5), recV = recentMatches(visitante, 5);
+        const avgFor = arr => arr.length ? (arr.reduce((s, x) => s + x.gf, 0) / arr.length) : 0;
+        const formPoints = arr => arr.reduce((s, x) => s + (x.res === 'W' ? 3 : x.res === 'D' ? 1 : 0), 0);
+        const Lavg = avgFor(recL), Vavg = avgFor(recV);
+        const Lform = formPoints(recL), Vform = formPoints(recV);
+
+        // Head-to-head (últimos 5 enfrentamientos entre ellos)
+        const h2h = históricos.filter(m => (m.local === local && m.visitante === visitante) || (m.local === visitante && m.visitante === local))
+          .slice(0, 5);
+        let hA = 0, hB = 0, hD = 0;
+        for (const m of h2h) {
+          const r = resultados[m.id];
+          const gl = Number(r.gl || 0), gv = Number(r.gv || 0);
+          if (m.local === local) {
+            if (gl > gv) hA++; else if (gl === gv) hD++; else hB++;
+          } else {
+            if (gl > gv) hB++; else if (gl === gv) hD++; else hA++;
+          }
+        }
+        const hBias = (hA - hB) / Math.max(1, hA + hB + hD); // -1..1
+
+        // Señales combinadas (pesos ajustables)
+        const weightGoals = 0.45, weightForm = 0.35, weightH2H = 0.20;
+        const gA = Lavg + 0.1, gB = Vavg + 0.1; // suavizado
+        const rawGoalsA = gA / (gA + gB);
+        const rawFormA = (Lform / 15) / ((Lform / 15) + (Vform / 15) || 1);
+        const rawH2hA = (hBias + 1) / 2; // map -1..1 → 0..1
+
+        let scoreA = weightGoals * rawGoalsA + weightForm * rawFormA + weightH2H * rawH2hA;
+        scoreA = Math.max(0.01, Math.min(0.99, scoreA));
+        let scoreB = 1 - scoreA;
+
+        const drawBase = 0.18;
+        let localPct = scoreA * (1 - drawBase) * 100;
+        let awayPct = scoreB * (1 - drawBase) * 100;
+        let drawPct = drawBase * 100;
+        const total = localPct + awayPct + drawPct;
+        localPct = localPct / total * 100; drawPct = drawPct / total * 100; awayPct = awayPct / total * 100;
+
+        const texto = `Forma (últ.5): L ${Lform}/15 · V ${Vform}/15 · H2H ${hA}-${hB}-${hD}`;
+        const pred = `<b>${Math.round(localPct)}%</b> Local · <b>${Math.round(drawPct)}%</b> Empate · <b>${Math.round(awayPct)}%</b> Visitante`;
+        return `<div class="partido__analisis aviso--dorado">${U.esc(texto)} · ${pred}</div>`;
+      } catch (e) { return ''; }
+    }
 
   function pintarPartidos() {
     const lista = filtrar(partidosEf())

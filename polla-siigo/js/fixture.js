@@ -13,7 +13,7 @@
      (admin o sincronización con API).
    ============================================================ */
 
-const f = c => ''; // Se apagan las banderas/iniciales por petición para dejar solo los nombres
+const f = c => `<img src="https://flagcdn.com/24x18/${c}.png" style="width:20px;vertical-align:middle;border-radius:2px;margin:0 4px" alt="flag">`;
 const EQUIPOS = {
   // Grupo A
   MEX:{n:'México',b:f('mx'),g:'A'}, RSA:{n:'Sudáfrica',b:f('za'),g:'A'}, KOR:{n:'Corea del Sur',b:f('kr'),g:'A'}, CZE:{n:'Chequia',b:f('cz'),g:'A'},
