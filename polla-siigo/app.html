@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Partidos — Polla Siigo 2026</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+
+<header class="barra">
+  <div class="contenedor barra__fila">
+    <a class="logo" href="app.html"><span class="logo__balon">⚽</span><span>Polla Siigo <small>Mundial 2026</small></span></a>
+    <nav class="nav" id="nav">
+      <a href="app.html" class="activo">Partidos</a>
+      <a href="tabla.html">Tabla</a>
+      <a href="cuentas.html">Cuentas</a>
+      <a href="reglas.html">Reglas</a>
+    </nav>
+    <div class="usuario-mini">
+      <div class="avatar" id="avatar">?</div>
+      <button class="boton boton--fantasma boton--mini" id="salir" type="button">Salir</button>
+    </div>
+  </div>
+</header>
+
+<main class="contenedor">
+
+  <section class="fila-flex" style="margin-top:22px">
+    <div>
+      <h1 style="margin:0;font-size:26px" id="saludo">Hola 👋</h1>
+      <p class="sub" style="margin:4px 0 0" id="resumen-yo"></p>
+    </div>
+    <div class="empuja panel panel--relleno" style="padding:12px 18px" id="proximo-cierre"></div>
+  </section>
+
+  <div class="tabs" role="tablist" style="margin-top:18px">
+    <button class="activo" data-tab="partidos" type="button">⚽ Partidos</button>
+    <button data-tab="grupos" type="button">🗂 Grupos del Mundial</button>
+    <button data-tab="campeon" type="button">🏆 Mi campeón</button>
+  </div>
+
+  <!-- ============ TAB PARTIDOS ============ -->
+  <section id="tab-partidos">
+    <div class="chips" id="chips">
+      <button class="chip" data-f="hoy" type="button">📅 Hoy</button>
+      <button class="chip" data-f="pendientes" type="button">✏️ Me faltan</button>
+      <button class="chip" data-f="j1" type="button">Jornada 1</button>
+      <button class="chip" data-f="j2" type="button">Jornada 2</button>
+      <button class="chip" data-f="j3" type="button">Jornada 3</button>
+      <button class="chip" data-f="elim" type="button">🔥 Eliminatorias</button>
+      <button class="chip" data-f="todos" type="button">Todos</button>
+      <select class="mini-input" id="f-grupo" aria-label="Filtrar por grupo">
+        <option value="">Grupo…</option>
+      </select>
+    </div>
+    <div id="lista-partidos" aria-live="polite"></div>
+  </section>
+
+  <!-- ============ TAB GRUPOS ============ -->
+  <section id="tab-grupos" class="oculto">
+    <p class="sub">Posiciones reales del Mundial con los partidos ya finalizados.
+      Clasifican a dieciseisavos el 1.º y 2.º de cada grupo y los 8 mejores terceros.</p>
+    <div class="rejilla rejilla--3" id="lista-grupos"></div>
+  </section>
+
+  <!-- ============ TAB CAMPEÓN ============ -->
+  <section id="tab-campeon" class="oculto">
+    <div class="panel panel--relleno" style="margin-bottom:18px">
+      <h2>🏆 ¿Quién levanta la copa?</h2>
+      <p class="sub" id="campeon-estado"></p>
+      <div id="campeon-aviso"></div>
+    </div>
+    <div class="campeones" id="lista-campeones"></div>
+  </section>
+
+  <footer class="pie">
+    <p class="creditos">Creado por Nicolás Nieto Daza y Juan Rodríguez · Área de Soporte IT — Siigo</p>
+  </footer>
+</main>
+
+<script type="module" src="js/config.js"></script>
+<script type="module" src="js/fixture.js"></script>
+<script type="module" src="js/utils.js"></script>
+<script type="module" src="js/store.js"></script>
+<script type="module" src="js/puntos.js"></script>
+<script type="module" src="js/api-futbol.js"></script>
+<script type="module" src="js/email.js"></script>
+<script type="module">
+import { CONFIG } from './js/config.js';
+
+(async () => {
+  await Store.init();
+  const yo = await Store.sesion();
+  if (!U.requiereSesion(yo)) return;
+  if (yo.estado === 'pendiente') { U.toast('Tu cuenta aún está pendiente de aprobación.', 'info'); await Store.logout(); location.href = 'index.html'; return; }
+
+  /* --- estado en memoria -------------------------------------- */
+  let resultados = {}, ajustes = {}, misPred = {}, predsByPartido = {}, filtro = 'hoy', filtroGrupo = '';
+  const partidosEf = () => FIXTURE.partidos.map(p => Puntos.conAjustes(p, ajustes));
+
+  /* --- encabezado --------------------------------------------- */
+  document.getElementById('avatar').textContent = U.iniciales(yo.nombre);
+  document.getElementById('saludo').textContent = `Hola, ${yo.nombre.split(' ')[0]} 👋`;
+  if (yo.rol === 'admin') {
+    const a = document.createElement('a'); a.href = 'admin.html'; a.textContent = '🛠 Admin';
+    document.getElementById('nav').appendChild(a);
+  }
+  document.getElementById('salir').onclick = async () => { await Store.logout(); location.href = 'index.html'; };
+
+  async function pintarResumenYo() {
+    const [usuarios, todas] = await Promise.all([Store.usuarios(), Store.todasPredicciones()]);
+    const filas = Puntos.tabla(usuarios, todas, resultados, ajustes);
+    const fila = filas.find(f => f.uid === yo.uid);
+    document.getElementById('resumen-yo').innerHTML = fila
+      ? `Llevas <b style="color:var(--dorado)">${fila.pts} pts</b> · puesto <b>${fila.pos}</b> de ${filas.length} · ${fila.exactos} exactos`
+      : 'Aún no hay puntos en juego. ¡Pronostica!';
+  }
+
+  /* --- cuenta regresiva al próximo cierre ---------------------- */
+  function pintarProximoCierre() {
+    const prox = partidosEf()
+      .filter(p => U.abierto(p, resultados[p.id]))
+      .sort((a, b) => a.utc.localeCompare(b.utc))[0];
+    const caja = document.getElementById('proximo-cierre');
+    if (!prox) { caja.innerHTML = '<span class="sub">No hay cierres próximos.</span>'; return; }
+    const L = FIXTURE.equipo(prox.local), V = FIXTURE.equipo(prox.visitante);
+    const t = U.cuentaRegresiva(prox.utc);
+    const reloj = t.d > 0 ? `${t.d}d ${String(t.h).padStart(2,'0')}:${String(t.m).padStart(2,'0')}` 
+                          : `${String(t.h).padStart(2,'0')}:${String(t.m).padStart(2,'0')}:${String(t.s).padStart(2,'0')}`;
+    caja.innerHTML = `
+      <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--tinta-3)">Próximo cierre · ${L.b} vs ${V.b}</div>
+      <div style="font-family:var(--fuente-marcador);font-size:26px;font-weight:700;color:var(--dorado)">FALTAN ${reloj}</div>`;
+  }
+  setInterval(pintarProximoCierre, 1000);
+
+  /* --- TABS ----------------------------------------------------- */
+  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+    document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('activo', x === b));
+    ['partidos', 'grupos', 'campeon'].forEach(t =>
+      document.getElementById('tab-' + t).classList.toggle('oculto', b.dataset.tab !== t));
+    if (b.dataset.tab === 'grupos') pintarGrupos();
+    if (b.dataset.tab === 'campeon') pintarCampeon();
+  });
+
+  /* --- FILTROS --------------------------------------------------- */
+  const selGrupo = document.getElementById('f-grupo');
+  selGrupo.innerHTML += Object.keys(FIXTURE.grupos).map(g => `<option value="${g}">Grupo ${g}</option>`).join('');
+  selGrupo.onchange = () => { filtroGrupo = selGrupo.value; pintarPartidos(); };
+  document.getElementById('chips').addEventListener('click', e => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    filtro = b.dataset.f;
+    document.querySelectorAll('.chip').forEach(c => c.classList.toggle('activo', c === b));
+    pintarPartidos();
+  });
+
+  function filtrar(lista) {
+    const hoyLocal = new Date().toLocaleDateString('en-CA');           // YYYY-MM-DD local
+    let out = lista;
+    if (filtro === 'hoy') out = out.filter(p =>
+      (p.utc && new Date(p.utc).toLocaleDateString('en-CA') === hoyLocal) ||
+      (resultados[p.id] || {}).estado === 'en_juego');
+    if (filtro === 'pendientes') out = out.filter(p => U.abierto(p, resultados[p.id]) && !misPred[p.id]);
+    if (/^j[123]$/.test(filtro)) out = out.filter(p => p.fase === 'grupos' && p.jornada === +filtro[1]);
+    if (filtro === 'elim') out = out.filter(p => p.fase === 'eliminatorias');
+    if (filtroGrupo) out = out.filter(p => p.grupo === filtroGrupo || (p.fase === 'eliminatorias' && !filtroGrupo));
+    return out;
+  }
+
+  /* --- TARJETA DE PARTIDO ---------------------------------------- */
+  function cardPartido(p) {
+    const res = resultados[p.id] || null;
+    const est = U.estadoPartido(p, res);
+    const L = FIXTURE.equipo(p.local), V = FIXTURE.equipo(p.visitante);
+    const pred = misPred[p.id];
+    const sinEquipos = !p.local || !p.visitante;
+
+    /* etiqueta de estado */
+    let badge = '';
+    if (est === 'en_juego')  badge = `<span class="etiqueta etiqueta--vivo">● EN VIVO ${res.minuto ? res.minuto + '′' : ''}</span>`;
+    if (est === 'finalizado') badge = `<span class="etiqueta etiqueta--fin">FINAL</span>`;
+    if (est === 'cerrado')    badge = `<span class="etiqueta">CERRADO</span>`;
+    if (est === 'sin_definir') badge = `<span class="etiqueta">POR DEFINIR</span>`;
+
+    /* hora */
+    const hora = !p.utc
+      ? `📆 ${U.esc(p.ventana || p.fecha)} · hora por definir`
+      : p.horaOk
+        ? `🕐 ${U.diaLocal(p.utc)} · ${U.horaLocal(p.utc)} (tu hora)`
+        : `🕐 ${U.diaLocal(p.utc)} · <b>hora por confirmar</b> — cierra 11:00 a.m. Colombia`;
+
+    /* marcador central */
+    let centro;
+    if (res && (est === 'en_juego' || est === 'finalizado')) {
+      centro = `<div class="marcador ${est === 'en_juego' ? 'marcador--vivo' : 'marcador--fin'}">${res.gl} – ${res.gv}</div>`;
+    } else {
+      centro = `<div class="marcador"><span class="vs">VS</span></div>`;
+    }
+
+    /* zona de pronóstico */
+    let zona;
+    if (sinEquipos) {
+      zona = `<div class="pronostico"><span class="pronostico__guardado">Los equipos se definen al cerrar la fase anterior.</span></div>`;
+    } else if (U.abierto(p, res)) {
+      const gl = pred ? pred.gl : '', gv = pred ? pred.gv : '';
+      zona = `
+        <div class="pronostico" data-pid="${p.id}">
+          <div class="stepper">
+            <button type="button" data-st="l-">−</button>
+            <input inputmode="numeric" data-in="l" value="${gl}" placeholder="–" aria-label="Goles ${U.esc(L.n)}">
+            <button type="button" data-st="l+">+</button>
+          </div>
+          <button class="boton boton--verde boton--mini" data-guardar type="button">${pred ? 'Actualizar' : 'Guardar'} ✓</button>
+          <div class="stepper">
+            <button type="button" data-st="v-">−</button>
+            <input inputmode="numeric" data-in="v" value="${gv}" placeholder="–" aria-label="Goles ${U.esc(V.n)}">
+            <button type="button" data-st="v+">+</button>
+          </div>
+          ${pred ? `<span class="pronostico__guardado">Guardado: ${pred.gl}–${pred.gv} ✓</span>` : ''}
+        </div>`;
+    } else {
+      const cal = Puntos.calificar(pred, res, p.fase);
+      zona = `
+        <div class="pronostico">
+          ${pred
+            ? `<span class="pronostico__guardado">Tu pronóstico: <b>${pred.gl}–${pred.gv}</b></span>`
+            : `<span class="pronostico__guardado">No alcanzaste a pronosticar 😅</span>`}
+          ${est === 'finalizado' && pred ? `<span class="puntos-ganados">${cal.pts > 0 ? '+' + cal.pts + ' pts' : '0 pts'} ${cal.tipo === 'exacto' ? '🎯 ¡Exacto!' : cal.tipo === 'resultado' ? '✔ Resultado' : ''}</span>` : ''}
+        </div>`;
+    }
+
+    return `
+      <article class="partido ${est === 'en_juego' ? 'partido--vivo' : ''}" id="p-${p.id}">
+        <div class="partido__meta">
+          <span class="etiqueta etiqueta--dorada">${U.esc(p.etapa)}</span>
+          ${badge}
+          <span>${hora}</span>
+          <span class="empuja">🏟 ${U.esc(p.estadio || p.sede)}</span>
+        </div>
+        <div class="partido__centro">
+          <div class="equipo"><span class="bandera">${L.b || '⚽'}</span><span class="nombre">${U.esc(p.local ? L.n : p.etiqL)}</span></div>
+          ${centro}
+          <div class="equipo equipo--v"><span class="nombre">${U.esc(p.visitante ? V.n : p.etiqV)}</span><span class="bandera">${V.b || '⚽'}</span></div>
+        </div>
+        ${zona}
+        ${renderStats(p.id)}
+      </article>`;
+  }
+
+  function renderStats(pid) {
+    const preds = predsByPartido[pid] || [];
+    if (!preds.length) return `<div class="partido__stats" style="font-size:13px;color:var(--tinta-3);margin:8px 12px">Sin pronósticos todavía</div>`;
+    let local = 0, draw = 0, away = 0;
+    for (const pr of preds) {
+      const gl = Number(pr.gl), gv = Number(pr.gv);
+      if (isNaN(gl) || isNaN(gv)) continue;
+      if (gl > gv) local++; else if (gl === gv) draw++; else away++;
+    }
+    const total = local + draw + away || 1;
+    const pct = n => Math.round((n / total) * 100);
+    return `<div class="partido__stats" style="display:flex;gap:10px;align-items:center;margin:8px 12px;font-size:13px">
+      <span style="color:var(--verde-claro)">🏠 ${pct(local)}%</span>
+      <span style="color:var(--tinta)">🤝 ${pct(draw)}%</span>
+      <span style="color:var(--azul)">✈ ${pct(away)}%</span>
+      <span style="margin-left:auto;color:var(--sub)" class="sub">${preds.length} pron.</span>
+    </div>`;
+  }
+
+  function pintarPartidos() {
+    const lista = filtrar(partidosEf())
+      .sort((a, b) => (a.utc || a.fecha + 'T23').localeCompare(b.utc || b.fecha + 'T23'));
+    const cont = document.getElementById('lista-partidos');
+    if (!lista.length) {
+      cont.innerHTML = `<div class="aviso">No hay partidos con este filtro. Prueba con otro 👆</div>`;
+      return;
+    }
+    let html = '', diaActual = '';
+    for (const p of lista) {
+      if (p.fecha !== diaActual) {
+        diaActual = p.fecha;
+        html += `<h3 class="dia-titulo">${U.fechaLarga(p.fecha)}</h3>`;
+      }
+      html += cardPartido(p);
+    }
+    cont.innerHTML = html;
+  }
+
+  /* steppers + guardar (delegación de eventos) */
+  document.getElementById('lista-partidos').addEventListener('click', async e => {
+    const caja = e.target.closest('.pronostico[data-pid]'); if (!caja) return;
+    const pid = caja.dataset.pid;
+    const inL = caja.querySelector('[data-in="l"]'), inV = caja.querySelector('[data-in="v"]');
+    const st = e.target.closest('[data-st]');
+    if (st) {
+      const cual = st.dataset.st[0] === 'l' ? inL : inV;
+      let v = parseInt(cual.value, 10); if (isNaN(v)) v = 0;
+      v += st.dataset.st[1] === '+' ? 1 : -1;
+      cual.value = Math.max(0, Math.min(CONFIG.MAX_GOLES, v));
+      return;
+    }
+    if (e.target.closest('[data-guardar]')) {
+      const gl = parseInt(inL.value, 10), gv = parseInt(inV.value, 10);
+      if (isNaN(gl) || isNaN(gv)) { U.toast('Pon los dos marcadores 😉', 'error'); return; }
+      const p = partidosEf().find(x => x.id === pid);
+      if (!U.abierto(p, resultados[pid])) { U.toast('Este partido ya cerró.', 'error'); pintarPartidos(); return; }
+      try {
+        await Store.guardarPrediccion(yo.uid, pid, Math.min(CONFIG.MAX_GOLES, Math.max(0, gl)), Math.min(CONFIG.MAX_GOLES, Math.max(0, gv)));
+        misPred[pid] = { uid: yo.uid, pid, gl, gv };
+        U.toast(`Pronóstico guardado: ${gl}–${gv} ⚽`);
+        pintarPartidos();
+      } catch (err) { U.toast(err.message, 'error'); }
+    }
+  });
+
+  /* --- GRUPOS DEL MUNDIAL ---------------------------------------- */
+  function pintarGrupos() {
+    const tablas = Puntos.gruposMundial(resultados);
+    document.getElementById('lista-grupos').innerHTML = Object.entries(tablas).map(([g, filas]) => `
+      <div class="panel grupo-card">
+        <h3>GRUPO ${g}</h3>
+        <table>
+          <tr><th>Equipo</th><th>PJ</th><th>DG</th><th>Pts</th></tr>
+          ${filas.map((f, i) => {
+            const eq = FIXTURE.equipo(f.code);
+            return `<tr class="${i < 2 ? 'clasifica' : ''}">
+              <td>${eq.b} ${U.esc(eq.n)}</td>
+              <td class="num">${f.pj}</td><td class="num">${f.dg > 0 ? '+' : ''}${f.dg}</td>
+              <td class="num" style="color:var(--dorado);font-weight:800">${f.pts}</td></tr>`;
+          }).join('')}
+        </table>
+      </div>`).join('');
+  }
+
+  /* --- MI CAMPEÓN -------------------------------------------------- */
+  function pintarCampeon() {
+    const abierto = new Date(CONFIG.REGLAS.cierreCampeonUTC) > new Date();
+    const estado = document.getElementById('campeon-estado');
+    const aviso = document.getElementById('campeon-aviso');
+    estado.innerHTML = abierto
+      ? `Vale <b style="color:var(--dorado)">${CONFIG.REGLAS.bonusCampeon} puntos</b> si aciertas. Puedes cambiarlo hasta el pitazo inicial (${U.diaLocal(CONFIG.REGLAS.cierreCampeonUTC)} ${U.horaLocal(CONFIG.REGLAS.cierreCampeonUTC)}).`
+      : `La elección cerró con el pitazo inicial.`;
+    aviso.innerHTML = yo.campeon
+      ? `<div class="aviso aviso--verde">Tu campeón: <b>${FIXTURE.equipo(yo.campeon).b} ${U.esc(FIXTURE.equipo(yo.campeon).n)}</b> ${abierto ? '— toca otra bandera si quieres cambiarlo.' : ''}</div>`
+      : (abierto ? `<div class="aviso aviso--dorado">Aún no has elegido campeón. ¡No dejes los 10 puntos sobre la mesa!</div>`
+                 : `<div class="aviso">No elegiste campeón esta vez.</div>`);
+    document.getElementById('lista-campeones').innerHTML = Object.keys(FIXTURE.equipos).sort((a, b) =>
+      FIXTURE.equipo(a).n.localeCompare(FIXTURE.equipo(b).n, 'es')).map(c => {
+      const eq = FIXTURE.equipo(c);
+      return `<button class="campeon-op ${yo.campeon === c ? 'elegido' : ''}" data-eq="${c}" ${abierto ? '' : 'disabled'} type="button">
+        <span class="bandera">${eq.b}</span> ${U.esc(eq.n)}</button>`;
+    }).join('');
+  }
+  document.getElementById('lista-campeones').addEventListener('click', async e => {
+    const b = e.target.closest('[data-eq]'); if (!b || b.disabled) return;
+    if (new Date(CONFIG.REGLAS.cierreCampeonUTC) <= new Date()) { U.toast('La elección de campeón ya cerró.', 'error'); return; }
+    try {
+      await Store.actualizarUsuario(yo.uid, { campeon: b.dataset.eq });
+      yo.campeon = b.dataset.eq;
+      U.toast(`Campeón elegido: ${FIXTURE.equipo(yo.campeon).n} 🏆`);
+      pintarCampeon();
+    } catch (err) { U.toast(err.message, 'error'); }
+  });
+
+  /* --- CARGA Y TIEMPO REAL ------------------------------------------ */
+  async function cargar() {
+    const [res, aj, mp, todas] = await Promise.all([
+      Store.resultados(), Store.ajustes(), Store.predicciones(yo.uid), Store.todasPredicciones()
+    ]);
+    resultados = res; ajustes = aj; misPred = mp;
+    // construir índice de predicciones por partido
+    predsByPartido = {};
+    Object.values(todas || {}).forEach(userMap => {
+      Object.values(userMap || {}).forEach(pr => {
+        predsByPartido[pr.pid] = predsByPartido[pr.pid] || [];
+        predsByPartido[pr.pid].push(pr);
+      });
+    });
+    pintarPartidos(); pintarProximoCierre(); pintarResumenYo();
+    if (!document.getElementById('tab-grupos').classList.contains('oculto')) pintarGrupos();
+  }
+
+  /* filtro inicial: si hoy no hay partidos, mostrar Jornada 1 */
+  const hoyLocal = new Date().toLocaleDateString('en-CA');
+  const hayHoy = FIXTURE.partidos.some(p => p.utc && new Date(p.utc).toLocaleDateString('en-CA') === hoyLocal);
+  filtro = hayHoy ? 'hoy' : 'j1';
+  document.querySelector(`.chip[data-f="${filtro}"]`).classList.add('activo');
+
+  await cargar();
+  Store.enCambios(cargar);                      // tiempo real (Firestore) / otras pestañas (demo)
+  setInterval(() => pintarPartidos(), 45000);   // re-evalúa cierres aunque no haya cambios
+})();
+</script>
+</body>
+</html>

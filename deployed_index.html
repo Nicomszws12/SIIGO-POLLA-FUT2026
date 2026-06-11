@@ -1,0 +1,215 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Polla Mundialista Siigo 2026 — Entrar</title>
+  <meta name="description" content="La polla futbolera oficial de Siigo para el Mundial 2026. Pronostica, compite y celebra con tus compañeros.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+
+<header class="barra">
+  <div class="contenedor barra__fila">
+    <a class="logo" href="index.html">
+      <span class="logo__balon">⚽</span>
+      <span>Polla Siigo <small>Mundial 2026</small></span>
+    </a>
+    <nav class="nav">
+      <a href="reglas.html">Reglas</a>
+    </nav>
+  </div>
+</header>
+
+<main class="contenedor">
+
+  <section class="heroe">
+    <div class="heroe__copa">🏆</div>
+    <h1>La Polla Mundialista <span class="acento">Siigo 2026</span></h1>
+    <p class="bajada">48 selecciones, 104 partidos y una sola tabla que importa: la nuestra.
+      Pronostica los marcadores, suma puntos y demuestra quién sabe más de fútbol en Siigo.</p>
+    <div class="marquesina">⏱ El Mundial arranca</div>
+    <div class="countdown" id="countdown" aria-live="polite"></div>
+    <p class="ayuda" id="primer-partido"></p>
+  </section>
+
+  <section class="rejilla rejilla--2" style="align-items:start">
+
+    <!-- ====== ACCESO ====== -->
+    <div class="panel panel--relleno">
+      <div class="alterna" role="tablist">
+        <button id="t-login" class="activo" type="button">Iniciar sesión</button>
+        <button id="t-registro" type="button">Crear cuenta</button>
+      </div>
+
+      <!-- Login -->
+      <form id="f-login" autocomplete="on">
+        <div class="campo">
+          <label for="l-correo">Correo</label>
+          <input id="l-correo" type="email" required placeholder="tu.nombre@siigo.com" autocomplete="email">
+        </div>
+        <div class="campo">
+          <label for="l-clave">Contraseña</label>
+          <input id="l-clave" type="password" required minlength="8" autocomplete="current-password">
+        </div>
+        <button class="boton boton--bloque" type="submit">Entrar a la cancha ⚽</button>
+      </form>
+
+      <!-- Registro -->
+      <form id="f-registro" class="oculto" autocomplete="on">
+        <div class="campo">
+          <label for="r-nombre">Nombre completo</label>
+          <input id="r-nombre" type="text" required minlength="3" placeholder="Como quieres aparecer en la tabla" autocomplete="name">
+        </div>
+        <div class="campo">
+          <label for="r-correo">Correo personal</label>
+          <input id="r-correo" type="email" required placeholder="tu.nombre@siigo.com" autocomplete="email">
+          <p class="ayuda">Con correo <b>@siigo.com</b> entras de una. Familiares y amigos pueden usar
+            su correo personal: el equipo de Soporte IT aprueba su ingreso.</p>
+        </div>
+        <div class="campo">
+          <label for="r-area">Área / vínculo</label>
+          <input id="r-area" type="text" required placeholder="Ej: Soporte IT, Comercial, Familiar de…">
+        </div>
+        <div class="campo">
+          <label for="r-moneda">Moneda de tu cuota</label>
+          <select id="r-moneda" required></select>
+          <p class="ayuda" id="r-cuota"></p>
+        </div>
+        <div class="campo">
+          <label for="r-clave">Contraseña (mínimo 8 caracteres)</label>
+          <input id="r-clave" type="password" required minlength="8" autocomplete="new-password">
+        </div>
+        <button class="boton boton--verde boton--bloque" type="submit">Inscribirme en la polla 🎟</button>
+        <p class="ayuda centro" style="margin-top:10px">Al registrarte aceptas las <a href="reglas.html">reglas del juego</a>.
+          El dinero de la cuota se entrega por fuera de la app al tesorero.</p>
+      </form>
+    </div>
+
+    <!-- ====== CÓMO FUNCIONA ====== -->
+    <div class="panel panel--relleno">
+      <h2>¿Cómo se juega?</h2>
+      <p class="sub">Tres pasos y a gozarse el Mundial:</p>
+      <p>1️⃣ &nbsp;<b>Pronostica el marcador</b> de cada partido antes de que empiece.
+        Marcador exacto en fase de grupos vale <b>3 puntos</b>; acertar quién gana (o el empate) vale <b>1 punto</b>.
+        En eliminatorias sube a <b>5</b> y <b>2</b>.</p>
+      <p>2️⃣ &nbsp;<b>Elige tu campeón</b> antes del pitazo inicial: si lo aciertas, son <b>10 puntos</b> extra al final.</p>
+      <p>3️⃣ &nbsp;<b>Sigue la tabla en vivo</b>: los marcadores se actualizan en tiempo real y los puntos se calculan solos.</p>
+      <div class="aviso aviso--dorado">💰 La cuota se registra en tu moneda (pesos colombianos, mexicanos, chilenos,
+        uruguayos, bolívares y más). La app lleva las cuentas de quién pagó y cuánto hay en el bote,
+        pero <b>no mueve dinero</b>.</div>
+      <div class="kpis">
+        <div class="kpi"><div class="valor">48</div><div class="titulo">Selecciones</div></div>
+        <div class="kpi"><div class="valor">104</div><div class="titulo">Partidos</div></div>
+        <div class="kpi"><div class="valor">10</div><div class="titulo">Pts por el campeón</div></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="pie">
+    <p class="creditos">Creado por Nicolás Nieto Daza y Juan Rodríguez · Área de Soporte IT — Siigo</p>
+    <p>Mundial FIFA 2026 · México · Estados Unidos · Canadá 🇲🇽🇺🇸🇨🇦</p>
+  </footer>
+</main>
+
+<script type="module" src="js/config.js"></script>
+<script type="module" src="js/fixture.js"></script>
+<script type="module" src="js/utils.js"></script>
+<script type="module" src="js/store.js"></script>
+<script type="module" src="js/puntos.js"></script>
+<script type="module" src="js/email.js"></script>
+<script type="module">
+import { CONFIG } from './js/config.js';
+
+(async () => {
+  await Store.init();
+
+  /* Si ya hay sesión, directo a la app */
+  if (await Store.sesion()) { location.href = 'app.html'; return; }
+
+  /* --- Cuenta regresiva al pitazo inicial -------------------- */
+  const objetivo = CONFIG.REGLAS.cierreCampeonUTC;
+  const cd = document.getElementById('countdown');
+  function pintarCuenta() {
+    const t = U.cuentaRegresiva(objetivo);
+    if (t.ms <= 0) {
+      cd.innerHTML = '<div class="marquesina" style="color:var(--rojo);border-color:rgba(224,53,75,.5);background:rgba(224,53,75,.12)">🔴 ¡EL MUNDIAL YA RUEDA!</div>';
+      return;
+    }
+    cd.innerHTML = [['DÍAS', t.d], ['HORAS', t.h], ['MIN', t.m], ['SEG', t.s]]
+      .map(([txt, n]) => `<div class="countdown__celda"><div class="countdown__num">${String(n).padStart(2, '0')}</div><div class="countdown__txt">${txt}</div></div>`)
+      .join('');
+  }
+  pintarCuenta(); setInterval(pintarCuenta, 1000);
+
+  const inaugural = FIXTURE.partidos[0];
+  document.getElementById('primer-partido').textContent =
+    `Partido inaugural: ${FIXTURE.equipo(inaugural.local).n} vs ${FIXTURE.equipo(inaugural.visitante).n} · ` +
+    `${U.fechaLarga(inaugural.fecha)} · ${U.horaLocal(inaugural.utc)} (tu hora) · ${inaugural.estadio}`;
+
+  /* --- Monedas en el registro -------------------------------- */
+  const sel = document.getElementById('r-moneda');
+  sel.innerHTML = Object.entries(CONFIG.CUOTAS)
+    .map(([cod, m]) => `<option value="${cod}">${U.esc(m.nombre)} (${cod})</option>`).join('');
+  const pintaCuota = () => {
+    const m = CONFIG.CUOTAS[sel.value];
+    document.getElementById('r-cuota').textContent = `Cuota de inscripción: ${U.moneda(m.valor, sel.value)} — se paga al tesorero (${CONFIG.TESORERO}).`;
+  };
+  sel.onchange = pintaCuota; pintaCuota();
+
+  /* --- Alternar pestañas ------------------------------------- */
+  const tL = document.getElementById('t-login'), tR = document.getElementById('t-registro');
+  const fL = document.getElementById('f-login'), fR = document.getElementById('f-registro');
+  const alterna = reg => {
+    tL.classList.toggle('activo', !reg); tR.classList.toggle('activo', reg);
+    fL.classList.toggle('oculto', reg);  fR.classList.toggle('oculto', !reg);
+  };
+  tL.onclick = () => alterna(false);
+  tR.onclick = () => alterna(true);
+
+  /* --- Login -------------------------------------------------- */
+  fL.onsubmit = async e => {
+    e.preventDefault();
+    const btn = fL.querySelector('button'); btn.disabled = true;
+    try {
+      const u = await Store.login(document.getElementById('l-correo').value, document.getElementById('l-clave').value);
+      if (u.estado === 'pendiente') {
+        U.toast('Tu cuenta está pendiente de aprobación por Soporte IT.', 'info');
+        await Store.logout();
+      } else {
+        location.href = 'app.html';
+      }
+    } catch (err) { U.toast(err.message, 'error'); }
+    btn.disabled = false;
+  };
+
+  /* --- Registro ----------------------------------------------- */
+  fR.onsubmit = async e => {
+    e.preventDefault();
+    const btn = fR.querySelector('button'); btn.disabled = true;
+    try {
+      const u = await Store.registrar({
+        nombre: document.getElementById('r-nombre').value,
+        correo: document.getElementById('r-correo').value,
+        area: document.getElementById('r-area').value,
+        moneda: sel.value,
+        clave: document.getElementById('r-clave').value
+      });
+      Email.bienvenida(u).catch(() => {});
+      if (u.estado === 'pendiente') {
+        U.toast('¡Listo! Tu cuenta quedó pendiente de aprobación. Te avisaremos por correo.', 'info');
+        await Store.logout();
+        alterna(false);
+      } else {
+        U.toast(`¡Bienvenido(a) a la polla, ${u.nombre.split(' ')[0]}! ⚽`);
+        setTimeout(() => location.href = 'app.html', 600);
+      }
+    } catch (err) { U.toast(err.message, 'error'); }
+    btn.disabled = false;
+  };
+})();
+</script>
+</body>
+</html>
+

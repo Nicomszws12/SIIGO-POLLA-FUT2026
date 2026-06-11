@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel de administración — Polla Siigo 2026</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛠</text></svg>">
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+
+<header class="barra">
+  <div class="contenedor barra__fila">
+    <a class="logo" href="app.html"><span class="logo__balon">⚽</span><span>Polla Siigo <small>Mundial 2026</small></span></a>
+    <nav class="nav">
+      <a href="app.html">Partidos</a>
+      <a href="tabla.html">Tabla</a>
+      <a href="cuentas.html">Cuentas</a>
+      <a href="admin.html" class="activo">🛠 Admin</a>
+    </nav>
+    <div class="usuario-mini">
+      <div class="avatar" id="avatar">?</div>
+      <button class="boton boton--fantasma boton--mini" id="salir" type="button">Salir</button>
+    </div>
+  </div>
+</header>
+
+<main class="contenedor">
+
+  <section class="fila-flex" style="margin-top:24px">
+    <div>
+      <h1 style="margin:0;font-size:26px">🛠 Panel de Soporte IT</h1>
+      <p class="sub" id="modo-aviso"></p>
+    </div>
+    <div class="empuja fila-flex">
+      <button class="boton boton--mini" id="b-sync" type="button">🔄 Sincronizar con API</button>
+      <button class="boton boton--fantasma boton--mini" id="b-vivo" type="button">📡 Marcador automático: OFF</button>
+    </div>
+  </section>
+
+  <div class="tabs" style="margin-top:16px">
+    <button class="activo" data-tab="resultados" type="button">⚽ Resultados</button>
+    <button data-tab="gente" type="button">👥 Participantes</button>
+    <button data-tab="calendario" type="button">📅 Calendario y llaves</button>
+    <button data-tab="correos" type="button">✉️ Comunicaciones</button>
+    <button data-tab="pronosticos" type="button">🔮 Pronósticos</button>
+  </div>
+
+  <!-- ====== RESULTADOS ====== -->
+  <section id="tab-resultados">
+    <div class="chips" id="chips-res">
+      <button class="chip activo" data-f="cercanos" type="button">⏱ De estos días</button>
+      <button class="chip" data-f="grupos" type="button">Fase de grupos</button>
+      <button class="chip" data-f="elim" type="button">Eliminatorias</button>
+      <button class="chip" data-f="todos" type="button">Todos</button>
+    </div>
+    <div id="lista-res"></div>
+  </section>
+
+  <!-- ====== PARTICIPANTES ====== -->
+  <section id="tab-gente" class="oculto">
+    <div id="pendientes-caja"></div>
+    <div class="tabla-envoltura" style="margin-top:14px">
+      <table class="tabla">
+        <thead><tr><th>Participante</th><th>Correo</th><th>Vínculo</th><th>Cuota</th><th>Pagado</th><th>Rol</th><th></th></tr></thead>
+        <tbody id="cuerpo-gente"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ====== CALENDARIO Y LLAVES ====== -->
+  <section id="tab-calendario" class="oculto">
+    <p class="sub">Confirma horas y sedes, y asigna los equipos de las eliminatorias cuando se definan.
+      Los cambios mueven automáticamente el cierre de pronósticos. Hora en formato <b>UTC</b>
+      (Colombia = UTC−5: las 7:00 p. m. de Bogotá son las 00:00 UTC del día siguiente).</p>
+    <div class="chips" id="chips-cal">
+      <button class="chip activo" data-f="sinhora" type="button">🕐 Sin hora confirmada</button>
+      <button class="chip" data-f="elim" type="button">🔥 Eliminatorias</button>
+      <button class="chip" data-f="todos" type="button">Todos</button>
+    </div>
+    <div id="lista-cal"></div>
+  </section>
+
+  <!-- ====== COMUNICACIONES ====== -->
+  <section id="tab-correos" class="oculto">
+    <div class="rejilla rejilla--2" style="align-items:start">
+      <div class="panel panel--relleno">
+        <h2>⏰ Recordatorio de pronósticos</h2>
+        <p class="sub">Se envía a todos los participantes activos con los partidos que cierran en las próximas 30 horas.</p>
+        <div class="codigo" id="prev-recordatorio" style="max-height:220px;overflow:auto"></div>
+        <div class="sep"></div>
+        <button class="boton boton--verde" id="b-recordatorio" type="button">Enviar recordatorio 📨</button>
+        <p class="ayuda" id="estado-recordatorio"></p>
+      </div>
+      <div class="panel panel--relleno">
+        <h2>📊 Resumen de resultados</h2>
+        <p class="sub">Últimos marcadores finalizados + posición y puntos de cada participante.</p>
+        <div class="codigo" id="prev-resumen" style="max-height:220px;overflow:auto"></div>
+        <div class="sep"></div>
+        <button class="boton" id="b-resumen" type="button">Enviar resumen 📬</button>
+        <p class="ayuda" id="estado-resumen"></p>
+      </div>
+    </div>
+    <div class="aviso" id="aviso-emailjs" style="margin-top:16px"></div>
+  </section>
+
+  <!-- ====== PRONÓSTICOS ====== -->
+  <section id="tab-pronosticos" class="oculto">
+    <p class="sub">Edita los pronósticos de cualquier participante, incluso si el partido ya está en juego o finalizado.</p>
+    <div class="fila-flex" style="margin-bottom: 16px;">
+      <select id="sel-pron-user" class="mini-input" style="width: 250px;">
+        <option value="">-- Selecciona participante --</option>
+      </select>
+      <select id="sel-pron-match" class="mini-input" style="width: 300px;" disabled>
+        <option value="">-- Selecciona partido --</option>
+      </select>
+    </div>
+    <div id="caja-editar-pron" class="panel panel--relleno oculto">
+      <h3 id="pron-match-title" style="margin-top:0"></h3>
+      <div class="admin-fila" style="margin-top: 10px;">
+        <b id="pron-L-name" style="min-width:140px; text-align:right"></b>
+        <input class="mini-input" type="number" min="0" id="pron-gl" placeholder="–" style="width:64px">
+        <span>–</span>
+        <input class="mini-input" type="number" min="0" id="pron-gv" placeholder="–" style="width:64px">
+        <b id="pron-V-name" style="min-width:140px"></b>
+        <button class="boton boton--verde boton--mini" id="b-guardar-pron" type="button">Guardar Pronóstico</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== ZONA DE CONTROL ====== -->
+  <div class="panel panel--relleno" style="margin-top:26px">
+    <h2>🏁 Cierre de jornada</h2>
+    <p class="sub">Publica la tabla oficial (queda congelada para todos hasta la próxima publicación) y, en modo demo, carga datos de prueba.</p>
+    <div class="fila-flex">
+      <button class="boton" id="b-publicar" type="button">📌 Publicar tabla oficial</button>
+      <button class="boton boton--fantasma" id="b-ejemplo" type="button">🧪 Cargar datos de ejemplo (demo)</button>
+      <button class="boton boton--rojo boton--mini empuja" id="b-borrar-demo" type="button">🗑 Vaciar datos demo</button>
+    </div>
+  </div>
+
+  <footer class="pie">
+    <p class="creditos">Creado por Nicolás Nieto Daza y Juan Rodríguez · Área de Soporte IT — Siigo</p>
+  </footer>
+</main>
+
+<script type="module" src="js/config.js"></script>
+<script type="module" src="js/fixture.js"></script>
+<script type="module" src="js/utils.js"></script>
+<script type="module" src="js/store.js"></script>
+<script type="module" src="js/puntos.js"></script>
+<script type="module" src="js/api-futbol.js"></script>
+<script type="module" src="js/email.js"></script>
+<script type="module">
+import { CONFIG } from './js/config.js';
+(async () => {
+  await Store.init();
+  const yo = await Store.sesion();
+  if (!U.requiereSesion(yo)) return;
+  if (yo.rol !== 'admin') { U.toast('Esta zona es solo para administradores.', 'error'); location.href = 'app.html'; return; }
+
+  document.getElementById('avatar').textContent = U.iniciales(yo.nombre);
+  document.getElementById('salir').onclick = async () => { await Store.logout(); location.href = 'index.html'; };
+  document.getElementById('modo-aviso').innerHTML = Store.esDemo
+    ? 'Modo <b>DEMO</b>: los datos viven solo en este navegador. Cambia a Firebase en <code>js/config.js</code> para producción.'
+    : 'Modo <b>Firebase</b>: cambios visibles para todos en tiempo real.';
+
+  let resultados = {}, ajustes = {}, fRes = 'cercanos', fCal = 'sinhora', simuladores = {};
+  const partidosEf = () => FIXTURE.partidos.map(p => Puntos.conAjustes(p, ajustes));
+
+  async function cargar() {
+    [resultados, ajustes] = await Promise.all([Store.resultados(), Store.ajustes()]);
+    pintarRes(); pintarCal(); pintarGente(); pintarPrevios();
+  }
+
+  /* ============ TABS ============ */
+  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+    document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('activo', x === b));
+    ['resultados', 'gente', 'calendario', 'correos', 'pronosticos'].forEach(t =>
+      document.getElementById('tab-' + t).classList.toggle('oculto', b.dataset.tab !== t));
+  });
+
+  /* ============ RESULTADOS ============ */
+  document.getElementById('chips-res').onclick = e => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    fRes = b.dataset.f;
+    document.querySelectorAll('#chips-res .chip').forEach(c => c.classList.toggle('activo', c === b));
+    pintarRes();
+  };
+
+  function filtrarRes(lista) {
+    if (fRes === 'grupos') return lista.filter(p => p.fase === 'grupos');
+    if (fRes === 'elim') return lista.filter(p => p.fase === 'eliminatorias');
+    if (fRes === 'cercanos') {
+      const desde = Date.now() - 36 * 36e5, hasta = Date.now() + 48 * 36e5;
+      return lista.filter(p => p.utc && new Date(p.utc) >= new Date(desde) && new Date(p.utc) <= new Date(hasta));
+    }
+    return lista;
+  }
+
+  function pintarRes() {
+    const lista = filtrarRes(partidosEf()).filter(p => p.local && p.visitante)
+      .sort((a, b) => (a.utc || '9').localeCompare(b.utc || '9'));
+    document.getElementById('lista-res').innerHTML = lista.length ? lista.map(p => {
+      const r = resultados[p.id] || {};
+      const L = FIXTURE.equipo(p.local), V = FIXTURE.equipo(p.visitante);
+      const esElim = p.fase === 'eliminatorias';
+      return `
+      <article class="partido" data-pid="${p.id}">
+        <div class="partido__meta">
+          <span class="etiqueta etiqueta--dorada">${U.esc(p.etapa)}</span>
+          <span>🕐 ${p.utc ? U.diaLocal(p.utc) + ' · ' + U.horaLocal(p.utc) : 'sin hora'}</span>
+          <span class="empuja sub">${p.id}</span>
+        </div>
+        <div class="admin-fila">
+          <b style="min-width:160px">${L.b} ${U.esc(L.n)}</b>
+          <input class="mini-input" type="number" min="0" max="${CONFIG.MAX_GOLES}" data-r="gl" value="${r.gl ?? ''}" placeholder="–" style="width:64px">
+          <span>–</span>
+          <input class="mini-input" type="number" min="0" max="${CONFIG.MAX_GOLES}" data-r="gv" value="${r.gv ?? ''}" placeholder="–" style="width:64px">
+          <b style="min-width:160px">${U.esc(V.n)} ${V.b}</b>
+          <select class="mini-input" data-r="estado">
+            <option value="">Sin empezar</option>
+            <option value="en_juego" ${r.estado === 'en_juego' ? 'selected' : ''}>🔴 En juego</option>
+            <option value="finalizado" ${r.estado === 'finalizado' ? 'selected' : ''}>✅ Finalizado</option>
+          </select>
+          <input class="mini-input" type="number" min="0" max="130" data-r="minuto" value="${r.minuto ?? ''}" placeholder="min" style="width:70px" title="Minuto de juego">
+          ${esElim ? `
+          <select class="mini-input" data-r="pen" title="Si empataron: quién avanzó por penales">
+            <option value="">Penales: —</option>
+            <option value="${p.local}" ${r.ganadorPenales === p.local ? 'selected' : ''}>🥅 ${U.esc(L.n)}</option>
+            <option value="${p.visitante}" ${r.ganadorPenales === p.visitante ? 'selected' : ''}>🥅 ${U.esc(V.n)}</option>
+          </select>` : ''}
+          <button class="boton boton--verde boton--mini" data-guardar-res type="button">Guardar</button>
+          ${Store.esDemo ? `<button class="boton boton--fantasma boton--mini" data-simular type="button">${simuladores[p.id] ? '⏹ Parar' : '▶ Simular'}</button>` : ''}
+        </div>
+      </article>`;
+    }).join('') : '<div class="aviso">Nada por aquí con este filtro.</div>';
+  }
+
+  document.getElementById('lista-res').addEventListener('click', async e => {
+    const card = e.target.closest('[data-pid]'); if (!card) return;
+    const pid = card.dataset.pid;
+    if (e.target.closest('[data-guardar-res]')) {
+      const v = sel => card.querySelector(`[data-r="${sel}"]`);
+      const gl = parseInt(v('gl').value, 10), gv = parseInt(v('gv').value, 10);
+      const estado = v('estado').value;
+      if (estado && (isNaN(gl) || isNaN(gv))) { U.toast('Pon el marcador completo.', 'error'); return; }
+      const res = { estado: estado || null, gl: isNaN(gl) ? null : gl, gv: isNaN(gv) ? null : gv };
+      const min = parseInt((v('minuto') || {}).value, 10); if (!isNaN(min)) res.minuto = min;
+      const pen = v('pen'); if (pen) res.ganadorPenales = pen.value || null;
+      try { await Store.guardarResultado(pid, res); U.toast('Resultado guardado ✓'); await cargar(); }
+      catch (err) { U.toast(err.message, 'error'); }
+    }
+    if (e.target.closest('[data-simular]')) {
+      if (simuladores[pid]) { simuladores[pid](); delete simuladores[pid]; pintarRes(); return; }
+      simuladores[pid] = ApiFutbol.simular(pid, async ({ fin }) => {
+        resultados = await Store.resultados(); pintarRes();
+        if (fin) { delete simuladores[pid]; U.toast('Simulación terminada 🏁'); }
+      });
+      U.toast('Simulando partido en vivo… ⚽'); pintarRes();
+    }
+  });
+
+  /* ====== Sincronización con la API ====== */
+  document.getElementById('b-sync').onclick = async function () {
+    if (!ApiFutbol.disponible()) {
+      U.toast('Configura primero API_FUTBOL.proxyUrl en js/config.js (ver README).', 'error'); return;
+    }
+    this.disabled = true; this.textContent = '⏳ Sincronizando…';
+    try {
+      const r = await ApiFutbol.sincronizar();
+      U.toast(`Sincronizado: ${r.marcadores} marcadores · ${r.calendario} horarios (de ${r.total}).`);
+      await cargar();
+    } catch (err) { U.toast('API: ' + err.message, 'error'); }
+    this.disabled = false; this.textContent = '🔄 Sincronizar con API';
+  };
+
+  let pararVivo = null;
+  document.getElementById('b-vivo').onclick = function () {
+    if (pararVivo) { pararVivo(); pararVivo = null; this.textContent = '📡 Marcador automático: OFF'; this.classList.add('boton--fantasma'); return; }
+    if (!ApiFutbol.disponible()) { U.toast('Configura primero API_FUTBOL.proxyUrl en js/config.js.', 'error'); return; }
+    pararVivo = ApiFutbol.cicloEnVivo(() => cargar());
+    this.textContent = `📡 Automático cada ${CONFIG.API_FUTBOL.intervaloSegundos}s: ON`;
+    this.classList.remove('boton--fantasma');
+    U.toast('Marcador automático activo. Deja esta pestaña abierta durante los partidos. 📡');
+  };
+
+  /* ============ PARTICIPANTES ============ */
+  async function pintarGente() {
+    const usuarios = (await Store.usuarios()).sort((a, b) =>
+      (a.estado === b.estado ? a.nombre.localeCompare(b.nombre, 'es') : a.estado === 'pendiente' ? -1 : 1));
+    const pendientes = usuarios.filter(u => u.estado === 'pendiente');
+    document.getElementById('pendientes-caja').innerHTML = pendientes.length
+      ? `<div class="aviso aviso--dorado">🔔 <b>${pendientes.length} invitado(s)</b> esperando aprobación.</div>` : '';
+    document.getElementById('cuerpo-gente').innerHTML = usuarios.map(u => {
+      const cuota = (CONFIG.CUOTAS[u.moneda] || { valor: 0 }).valor;
+      return `<tr data-uid="${u.uid}" data-nombre="${U.esc(u.nombre)}">
+        <td><b>${U.esc(u.nombre)}</b> <button class="boton boton--fantasma boton--mini" data-editar-nombre type="button" style="padding:0 5px; border:none; background:transparent" title="Editar nombre">✏️</button><br><span class="sub">${U.esc(u.area || '')}</span></td>
+        <td class="sub">${U.esc(u.correo)}</td>
+        <td>${u.vinculo === 'externo'
+          ? (u.estado === 'pendiente'
+              ? '<button class="boton boton--verde boton--mini" data-aprobar type="button">Aprobar ✓</button>'
+              : '<span class="etiqueta">Invitado</span>')
+          : '<span class="etiqueta etiqueta--fin">Siigo</span>'}</td>
+        <td class="num">${U.moneda(cuota, u.moneda)}</td>
+        <td><label style="cursor:pointer"><input type="checkbox" data-pagado ${u.pagado ? 'checked' : ''}> ${u.pagado ? '✅' : '⏳'}</label></td>
+        <td>
+          <select class="mini-input" data-rol>
+            <option value="jugador" ${u.rol === 'jugador' ? 'selected' : ''}>Jugador</option>
+            <option value="admin" ${u.rol === 'admin' ? 'selected' : ''}>Admin</option>
+          </select>
+        </td>
+        <td><button class="boton boton--rojo boton--mini" data-borrar title="Eliminar participante" type="button">✕</button></td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="7" class="centro sub">Nadie registrado aún.</td></tr>';
+    pintarSelPronosticos(usuarios);
+  }
+
+  document.getElementById('cuerpo-gente').addEventListener('click', async e => {
+    const tr = e.target.closest('tr[data-uid]'); if (!tr) return;
+    const uid = tr.dataset.uid;
+    try {
+      if (e.target.closest('[data-aprobar]')) {
+        await Store.actualizarUsuario(uid, { estado: 'activo' });
+        U.toast('Invitado aprobado. ¡Bienvenido a la polla! 🎉'); pintarGente(); return;
+      }
+      if (e.target.closest('[data-borrar]')) {
+        if (!confirm('¿Eliminar a este participante y todos sus pronósticos?')) return;
+        await Store.eliminarUsuario(uid); U.toast('Participante eliminado.'); pintarGente(); return;
+      }
+      if (e.target.closest('[data-editar-nombre]')) {
+        const nombreActual = tr.dataset.nombre;
+        const nuevoNombre = prompt('Editar nombre de participante:', nombreActual);
+        if (nuevoNombre !== null && nuevoNombre.trim() !== '' && nuevoNombre.trim() !== nombreActual) {
+          await Store.actualizarUsuario(uid, { nombre: nuevoNombre.trim() });
+          U.toast('Nombre actualizado ✓'); pintarGente();
+        }
+        return;
+      }
+    } catch (err) { U.toast(err.message, 'error'); }
+  });
+  document.getElementById('cuerpo-gente').addEventListener('change', async e => {
+    const tr = e.target.closest('tr[data-uid]'); if (!tr) return;
+    const uid = tr.dataset.uid;
+    try {
+      if (e.target.matches('[data-pagado]')) {
+        await Store.actualizarUsuario(uid, { pagado: e.target.checked });
+        U.toast(e.target.checked ? 'Cuota marcada como pagada 💸' : 'Cuota marcada pendiente.');
+        pintarGente();
+      }
+      if (e.target.matches('[data-rol]')) {
+        await Store.actualizarUsuario(uid, { rol: e.target.value });
+        U.toast('Rol actualizado.');
+      }
+    } catch (err) { U.toast(err.message, 'error'); }
+  });
+
+  /* ============ CALENDARIO Y LLAVES ============ */
+  document.getElementById('chips-cal').onclick = e => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    fCal = b.dataset.f;
+    document.querySelectorAll('#chips-cal .chip').forEach(c => c.classList.toggle('activo', c === b));
+    pintarCal();
+  };
+
+  function pintarCal() {
+    let lista = partidosEf();
+    if (fCal === 'sinhora') lista = lista.filter(p => !p.horaOk && p.fase === 'grupos');
+    if (fCal === 'elim') lista = lista.filter(p => p.fase === 'eliminatorias');
+    lista = lista.sort((a, b) => (a.utc || a.fecha + 'T23').localeCompare(b.utc || b.fecha + 'T23'));
+    const opciones = sel => '<option value="">Por definir</option>' + Object.keys(FIXTURE.equipos)
+      .sort((a, b) => FIXTURE.equipo(a).n.localeCompare(FIXTURE.equipo(b).n, 'es'))
+      .map(c => `<option value="${c}" ${sel === c ? 'selected' : ''}>${FIXTURE.equipo(c).n}</option>`).join('');
+    document.getElementById('lista-cal').innerHTML = lista.length ? lista.map(p => {
+      const valLocal = p.utc ? new Date(p.utc).toISOString().slice(0, 16) : '';
+      return `
+      <article class="partido" data-pid="${p.id}">
+        <div class="partido__meta">
+          <span class="etiqueta etiqueta--dorada">${U.esc(p.etapa)}</span>
+          ${p.horaOk ? '<span class="etiqueta etiqueta--fin">HORA OK</span>' : '<span class="etiqueta">HORA POR CONFIRMAR</span>'}
+          <span class="empuja sub">${p.id}</span>
+        </div>
+        <div class="admin-fila">
+          ${p.fase === 'eliminatorias' ? `
+            <select class="mini-input" data-c="local">${opciones(p.local)}</select>
+            <span>vs</span>
+            <select class="mini-input" data-c="visitante">${opciones(p.visitante)}</select>`
+          : `<b>${FIXTURE.equipo(p.local).b} ${U.esc(FIXTURE.equipo(p.local).n)} vs ${U.esc(FIXTURE.equipo(p.visitante).n)} ${FIXTURE.equipo(p.visitante).b}</b>`}
+          <input class="mini-input" type="datetime-local" data-c="utc" value="${valLocal}" title="Fecha y hora en UTC">
+          <span class="sub">UTC</span>
+          <input class="mini-input" type="text" data-c="sede" value="${U.esc(p.sede || '')}" placeholder="Ciudad" style="width:150px">
+          <input class="mini-input" type="text" data-c="estadio" value="${U.esc(p.estadio || '')}" placeholder="Estadio" style="width:170px">
+          <button class="boton boton--mini" data-guardar-cal type="button">Guardar</button>
+        </div>
+      </article>`;
+    }).join('') : '<div class="aviso">Todo confirmado por aquí ✅</div>';
+  }
+
+  document.getElementById('lista-cal').addEventListener('click', async e => {
+    if (!e.target.closest('[data-guardar-cal]')) return;
+    const card = e.target.closest('[data-pid]');
+    const pid = card.dataset.pid;
+    const val = s => { const el = card.querySelector(`[data-c="${s}"]`); return el ? el.value : undefined; };
+    const aj = {};
+    if (val('utc')) aj.utc = new Date(val('utc') + ':00Z').toISOString();
+    if (val('sede') !== undefined) aj.sede = val('sede').trim();
+    if (val('estadio') !== undefined) aj.estadio = val('estadio').trim();
+    if (val('local') !== undefined) aj.local = val('local') || null;
+    if (val('visitante') !== undefined) aj.visitante = val('visitante') || null;
+    try { await Store.guardarAjuste(pid, aj); U.toast('Calendario actualizado 📅'); await cargar(); }
+    catch (err) { U.toast(err.message, 'error'); }
+  });
+
+  /* ============ COMUNICACIONES ============ */
+  async function pintarPrevios() {
+    const txt = Email.textoProximosPartidos(ajustes, resultados, 30);
+    document.getElementById('prev-recordatorio').textContent = txt || 'No hay partidos abiertos en las próximas 30 horas.';
+    const fin = partidosEf().filter(p => (resultados[p.id] || {}).estado === 'finalizado')
+      .sort((a, b) => (b.utc || '').localeCompare(a.utc || '')).slice(0, 10);
+    document.getElementById('prev-resumen').textContent = fin.length
+      ? fin.map(p => {
+          const r = resultados[p.id], L = FIXTURE.equipo(p.local), V = FIXTURE.equipo(p.visitante);
+          return `• ${L.n} ${r.gl}–${r.gv} ${V.n}`;
+        }).join('\n')
+      : 'Aún no hay partidos finalizados.';
+    document.getElementById('aviso-emailjs').innerHTML = Email.configurado()
+      ? '✅ EmailJS configurado: los correos se envían de verdad.'
+      : '🧪 EmailJS sin configurar: los envíos se <b>simulan</b> (verás la vista previa en la consola). Para enviar de verdad, completa el bloque EMAILJS de <code>js/config.js</code> (guía en el README).';
+  }
+
+  document.getElementById('b-recordatorio').onclick = async function () {
+    const txt = document.getElementById('prev-recordatorio').textContent;
+    const activos = (await Store.usuarios()).filter(u => u.estado === 'activo');
+    if (!activos.length) { U.toast('No hay participantes activos.', 'error'); return; }
+    this.disabled = true;
+    const est = document.getElementById('estado-recordatorio');
+    const r = await Email.recordatorio(activos, txt, (n, tot) => est.textContent = `Procesando ${n}/${tot}…`);
+    est.textContent = `Listo: ${r.enviados} enviados · ${r.simulados} simulados.`;
+    U.toast(`Recordatorio: ${r.enviados} enviados, ${r.simulados} simulados.`);
+    this.disabled = false;
+  };
+
+  document.getElementById('b-resumen').onclick = async function () {
+    const txt = document.getElementById('prev-resumen').textContent;
+    const [usuarios, todas] = await Promise.all([Store.usuarios(), Store.todasPredicciones()]);
+    const activos = usuarios.filter(u => u.estado === 'activo');
+    if (!activos.length) { U.toast('No hay participantes activos.', 'error'); return; }
+    const filas = Puntos.tabla(usuarios, todas, resultados, ajustes);
+    this.disabled = true;
+    const est = document.getElementById('estado-resumen');
+    const r = await Email.resumen(activos, txt, filas, (n, tot) => est.textContent = `Procesando ${n}/${tot}…`);
+    est.textContent = `Listo: ${r.enviados} enviados · ${r.simulados} simulados.`;
+    U.toast(`Resumen: ${r.enviados} enviados, ${r.simulados} simulados.`);
+    this.disabled = false;
+  };
+
+  /* ============ PRONÓSTICOS ============ */
+  let pronTodas = {};
+  
+  function pintarSelPronosticos(usuarios) {
+    const selU = document.getElementById('sel-pron-user');
+    const uActivos = usuarios.filter(u => u.estado === 'activo');
+    const uVal = selU.value;
+    selU.innerHTML = '<option value="">-- Selecciona participante --</option>' + 
+      uActivos.map(u => `<option value="${u.uid}">${U.esc(u.nombre)}</option>`).join('');
+    if (uActivos.find(u => u.uid === uVal)) selU.value = uVal;
+  }
+
+  document.getElementById('sel-pron-user').onchange = async e => {
+    const uid = e.target.value;
+    const selM = document.getElementById('sel-pron-match');
+    const caja = document.getElementById('caja-editar-pron');
+    caja.classList.add('oculto');
+    if (!uid) { selM.disabled = true; selM.innerHTML = '<option value="">-- Selecciona partido --</option>'; return; }
+    
+    pronTodas = await Store.predicciones(uid);
+    const lista = partidosEf().filter(p => p.local && p.visitante)
+      .sort((a, b) => (a.utc || '9').localeCompare(b.utc || '9'));
+      
+    selM.disabled = false;
+    selM.innerHTML = '<option value="">-- Selecciona partido --</option>' + lista.map(p => {
+      const L = FIXTURE.equipo(p.local), V = FIXTURE.equipo(p.visitante);
+      const pr = pronTodas[p.id];
+      const resTxt = pr ? ` (Pronóstico: ${pr.gl}-${pr.gv})` : ' (Sin pronóstico)';
+      return `<option value="${p.id}">${L.n} vs ${V.n}${resTxt}</option>`;
+    }).join('');
+  };
+
+  document.getElementById('sel-pron-match').onchange = e => {
+    const pid = e.target.value;
+    const caja = document.getElementById('caja-editar-pron');
+    if (!pid) { caja.classList.add('oculto'); return; }
+    
+    const p = partidosEf().find(x => x.id === pid);
+    const L = FIXTURE.equipo(p.local), V = FIXTURE.equipo(p.visitante);
+    const pr = pronTodas[pid] || { gl: '', gv: '' };
+    
+    document.getElementById('pron-match-title').innerHTML = `${L.b} ${L.n} vs ${V.n} ${V.b}`;
+    document.getElementById('pron-L-name').innerHTML = `${L.b} ${L.n}`;
+    document.getElementById('pron-V-name').innerHTML = `${V.n} ${V.b}`;
+    document.getElementById('pron-gl').value = pr.gl !== undefined ? pr.gl : '';
+    document.getElementById('pron-gv').value = pr.gv !== undefined ? pr.gv : '';
+    caja.classList.remove('oculto');
+  };
+
+  document.getElementById('b-guardar-pron').onclick = async () => {
+    const uid = document.getElementById('sel-pron-user').value;
+    const pid = document.getElementById('sel-pron-match').value;
+    const gl = parseInt(document.getElementById('pron-gl').value, 10);
+    const gv = parseInt(document.getElementById('pron-gv').value, 10);
+    
+    if (!uid || !pid) return;
+    if (isNaN(gl) || isNaN(gv)) { U.toast('Ingresa goles válidos.', 'error'); return; }
+    
+    try {
+      await Store.guardarPrediccion(uid, pid, gl, gv);
+      U.toast('Pronóstico editado correctamente ✓');
+      document.getElementById('sel-pron-user').dispatchEvent(new Event('change'));
+    } catch (err) {
+      U.toast('Error: ' + err.message, 'error');
+    }
+  };
+
+  /* ============ PUBLICAR / DEMO ============ */
+  document.getElementById('b-publicar').onclick = async () => {
+    const [usuarios, todas] = await Promise.all([Store.usuarios(), Store.todasPredicciones()]);
+    const filas = Puntos.tabla(usuarios, todas, resultados, ajustes);
+    await Store.publicarTabla(filas);
+    U.toast('Tabla oficial publicada 📌');
+  };
+
+  document.getElementById('b-ejemplo').onclick = async () => {
+    if (!Store.esDemo) { U.toast('Solo disponible en modo demo.', 'error'); return; }
+    await Store.cargarEjemplo();
+    U.toast('Datos de ejemplo cargados 🧪'); await cargar();
+  };
+
+  document.getElementById('b-borrar-demo').onclick = async () => {
+    if (!Store.esDemo) { U.toast('Solo disponible en modo demo.', 'error'); return; }
+    if (!confirm('¿Borrar TODOS los datos demo de este navegador (incluida tu cuenta)?')) return;
+    localStorage.removeItem('pollaSiigo'); sessionStorage.clear();
+    location.href = 'index.html';
+  };
+
+  await cargar();
+  Store.enCambios(cargar);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tabla de posiciones — Polla Siigo 2026</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+
+<header class="barra">
+  <div class="contenedor barra__fila">
+    <a class="logo" href="app.html"><span class="logo__balon">⚽</span><span>Polla Siigo <small>Mundial 2026</small></span></a>
+    <nav class="nav" id="nav">
+      <a href="app.html">Partidos</a>
+      <a href="tabla.html" class="activo">Tabla</a>
+      <a href="cuentas.html">Cuentas</a>
+      <a href="reglas.html">Reglas</a>
+    </nav>
+    <div class="usuario-mini">
+      <div class="avatar" id="avatar">?</div>
+      <button class="boton boton--fantasma boton--mini" id="salir" type="button">Salir</button>
+    </div>
+  </div>
+</header>
+
+<main class="contenedor">
+
+  <section style="margin-top:26px">
+    <h1 style="margin:0;font-size:26px">🏅 Tabla de posiciones</h1>
+    <p class="sub" id="nota-tabla"></p>
+  </section>
+
+  <div class="podio" id="podio"></div>
+
+  <div class="chips">
+    <button class="chip activo" data-v="" type="button">Todos</button>
+    <button class="chip" data-v="empleado" type="button">Siigo</button>
+    <button class="chip" data-v="externo" type="button">Invitados</button>
+  </div>
+
+  <div class="tabla-envoltura">
+    <table class="tabla">
+      <thead>
+        <tr>
+          <th>#</th><th>Participante</th><th>Área</th><th>🏆</th>
+          <th>Pts</th><th>🎯 Exactos</th><th>✔ Resultados</th><th>Jugadas</th>
+        </tr>
+      </thead>
+      <tbody id="cuerpo" style="cursor:pointer" title="Haz clic en un participante para ver sus pronósticos"></tbody>
+    </table>
+  </div>
+
+  <p class="ayuda" style="margin-top:14px">Desempates, en orden: puntos → marcadores exactos → resultados acertados → quien se registró primero.
+    El bono de campeón (+10) se suma cuando termine la final.</p>
+
+  <footer class="pie">
+    <p class="creditos">Creado por Nicolás Nieto Daza y Juan Rodríguez · Área de Soporte IT — Siigo</p>
+  </footer>
+</main>
+
+<script type="module" src="js/config.js"></script>
+<script type="module" src="js/fixture.js"></script>
+<script type="module" src="js/utils.js"></script>
+<script type="module" src="js/store.js"></script>
+<script type="module" src="js/puntos.js"></script>
+<script type="module">
+import { CONFIG } from './js/config.js';
+(async () => {
+  await Store.init();
+  const yo = await Store.sesion();
+  if (!U.requiereSesion(yo)) return;
+  document.getElementById('avatar').textContent = U.iniciales(yo.nombre);
+  document.getElementById('salir').onclick = async () => { await Store.logout(); location.href = 'index.html'; };
+  if (yo.rol === 'admin') {
+    const a = document.createElement('a'); a.href = 'admin.html'; a.textContent = '🛠 Admin';
+    document.getElementById('nav').appendChild(a);
+  }
+
+  let filas = [], filtro = '';
+
+  async function cargar() {
+    const publicada = await Store.tablaPublicada();
+    if (publicada && publicada.filas && publicada.filas.length) {
+      filas = publicada.filas;
+      document.getElementById('nota-tabla').textContent =
+        `Tabla oficial publicada el ${new Date(publicada.t).toLocaleString('es-CO')}.`;
+    } else {
+      const [usuarios, todas, resultados, ajustes] = await Promise.all([
+        Store.usuarios(), Store.todasPredicciones(), Store.resultados(), Store.ajustes()
+      ]);
+      filas = Puntos.tabla(usuarios, todas, resultados, ajustes);
+      document.getElementById('nota-tabla').textContent =
+        'Cálculo en vivo con los resultados cargados hasta ahora.';
+    }
+    pintar();
+  }
+
+  function pintar() {
+    const vista = filtro ? filas.filter(f => f.vinculo === filtro) : filas;
+
+    /* Podio (siempre con la tabla general) */
+    const podio = document.getElementById('podio');
+    const medallas = ['🥇', '🥈', '🥉'];
+    podio.innerHTML = [1, 0, 2].map(i => {
+      const f = filas[i];
+      if (!f) return '<div></div>';
+      return `<div class="podio__caja ${i === 0 ? 'podio__caja--1' : ''}">
+        <div class="medalla">${medallas[i]}</div>
+        <div class="quien">${U.esc(f.nombre)}</div>
+        <div class="pts">${f.pts} pts</div>
+        <div class="ayuda">${f.exactos} exactos</div>
+      </div>`;
+    }).join('');
+
+    document.getElementById('cuerpo').innerHTML = vista.length ? vista.map(f => `
+      <tr class="${f.uid === yo.uid ? 'yo' : ''}">
+        <td class="pos num">${f.pos}</td>
+        <td><b>${U.esc(f.nombre)}</b>${f.uid === yo.uid ? ' <span class="etiqueta etiqueta--dorada">TÚ</span>' : ''}
+            ${f.vinculo === 'externo' ? ' <span class="etiqueta">Invitado</span>' : ''}</td>
+        <td>${U.esc(f.area || '')}</td>
+        <td>${f.campeon ? FIXTURE.equipo(f.campeon).b + ' ' + FIXTURE.equipo(f.campeon).n : '—'}</td>
+        <td class="num" style="color:var(--dorado);font-weight:900">${f.pts}</td>
+        <td class="num">${f.exactos}</td>
+        <td class="num">${f.aciertos}</td>
+        <td class="num">${f.jugadas}</td>
+      </tr>`).join('')
+      : '<tr><td colspan="8" class="centro sub">Todavía no hay participantes en esta vista.</td></tr>';
+  }
+
+  document.querySelector('.chips').addEventListener('click', e => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    filtro = b.dataset.v;
+    document.querySelectorAll('.chip').forEach(c => c.classList.toggle('activo', c === b));
+    pintar();
+  });
+
+  // Ver pronósticos de los usuarios al hacer clic en su fila
+  document.getElementById('cuerpo').addEventListener('click', async e => {
+    const tr = e.target.closest('tr[data-uid]');
+    if (!tr) return;
+    const uid = tr.dataset.uid;
+
+    const sig = tr.nextElementSibling;
+    if (sig && sig.classList.contains('fila-pronosticos')) {
+      sig.remove(); // Si ya estaba abierto, lo cierra
+      return;
+    }
+    document.querySelectorAll('.fila-pronosticos').forEach(el => el.remove());
+
+    const usuario = filas.find(f => f.uid === uid);
+    if (!usuario) return;
+
+    const [todas, resultados, ajustes] = await Promise.all([
+      Store.todasPredicciones(), Store.resultados(), Store.ajustes()
+    ]);
+    const susPreds = todas[uid] || {};
+
+    const lista = FIXTURE.partidos
+      .map(p => Puntos.conAjustes(p, ajustes))
+      .filter(p => p.local && p.visitante)
+      .sort((a,b) => {
+         // Ordenar para mostrar los partidos más recientes primero
+         const tA = new Date(a.utc || '2099').getTime();
+         const tB = new Date(b.utc || '2099').getTime();
+         const ahora = Date.now();
+         return Math.abs(tA - ahora) - Math.abs(tB - ahora);
+      })
+      .map(p => {
+         const pr = susPreds[p.id];
+         const res = resultados[p.id];
+         const L = FIXTURE.equipo(p.local).n;
+         const V = FIXTURE.equipo(p.visitante).n;
+         const abierto = U.abierto(p, res);
+         
+         // Seguridad: No dejar ver pronósticos ajenos de partidos sin jugar
+         if (abierto && uid !== yo.uid && yo.rol !== 'admin') return null;
+         if (!pr) return null;
+         
+         let color = 'var(--texto)';
+         if (res && res.estado === 'finalizado') {
+           const pts = Puntos.partido(pr, res);
+           color = pts === CONFIG.REGLAS.exacto ? '#4ade80' : (pts === CONFIG.REGLAS.resultado ? '#facc15' : '#f87171');
+         }
+         
+         return `<li style="margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.05)">
+           <div style="display:flex; justify-content:space-between">
+             <span>${L} vs ${V}</span>
+             <strong style="color:${color}">${pr.gl} – ${pr.gv}</strong>
+           </div>
+           ${res && res.estado === 'finalizado' ? `<div class="sub" style="text-align:right">Marcador real: ${res.gl}–${res.gv}</div>` : ''}
+         </li>`;
+      }).filter(Boolean).slice(0, 10);
+
+    const trDetalle = document.createElement('tr');
+    trDetalle.className = 'fila-pronosticos';
+    trDetalle.innerHTML = `<td colspan="8" style="padding:16px; background:rgba(255,255,255,0.03); border-radius:8px">
+      <h4 style="margin:0 0 12px 0; color:var(--dorado)">🔮 Pronósticos de ${U.esc(usuario.nombre.split(' ')[0])}</h4>
+      <ul style="list-style:none; padding:0; margin:0; font-size:14px">
+        ${lista.length ? lista.join('') : '<li class="sub">Sin pronósticos públicos recientes.</li>'}
+      </ul>
+    </td>`;
+    tr.after(trDetalle);
+  });
+
+  await cargar();
+  Store.enCambios(cargar);
+})();
+</script>
+</body>
+</html>

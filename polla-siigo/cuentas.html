@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cuentas del bote — Polla Siigo 2026</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+
+<header class="barra">
+  <div class="contenedor barra__fila">
+    <a class="logo" href="app.html"><span class="logo__balon">⚽</span><span>Polla Siigo <small>Mundial 2026</small></span></a>
+    <nav class="nav" id="nav">
+      <a href="app.html">Partidos</a>
+      <a href="tabla.html">Tabla</a>
+      <a href="cuentas.html" class="activo">Cuentas</a>
+      <a href="reglas.html">Reglas</a>
+    </nav>
+    <div class="usuario-mini">
+      <div class="avatar" id="avatar">?</div>
+      <button class="boton boton--fantasma boton--mini" id="salir" type="button">Salir</button>
+    </div>
+  </div>
+</header>
+
+<main class="contenedor">
+
+  <section style="margin-top:26px">
+    <h1 style="margin:0;font-size:26px">💰 Las cuentas claras</h1>
+    <p class="sub">La app <b>solo registra</b> el dinero: las cuotas se entregan por fuera
+      (Nequi, transferencia, efectivo) al tesorero — <b id="tesorero"></b>. Aquí todos vemos
+      cuánto hay en el bote, quién ya pagó y cómo se repartirían los premios.</p>
+  </section>
+
+  <div class="aviso" id="mi-estado"></div>
+
+  <h2 style="font-size:19px;margin:26px 0 4px">🏦 El bote, por moneda</h2>
+  <p class="sub">Cada quien juega en su moneda. El bote de cada moneda se reparte entre quienes pagaron en ella.</p>
+  <div class="rejilla rejilla--3" id="botes"></div>
+
+  <h2 style="font-size:19px;margin:30px 0 4px">📒 ¿Quién le debe a quién?</h2>
+  <p class="sub">Pendientes de pago al tesorero. Cuando termine el Mundial, el tesorero le paga a los ganadores según el reparto.</p>
+  <div class="tabla-envoltura">
+    <table class="tabla">
+      <thead><tr><th>Participante</th><th>Área</th><th>Cuota</th><th>Estado</th><th>Movimiento</th></tr></thead>
+      <tbody id="cuerpo-pagos"></tbody>
+    </table>
+  </div>
+
+  <h2 style="font-size:19px;margin:30px 0 4px">🏆 Proyección de premios</h2>
+  <p class="sub" id="nota-premios"></p>
+  <div class="rejilla rejilla--3" id="premios"></div>
+
+  <footer class="pie">
+    <p class="creditos">Creado por Nicolás Nieto Daza y Juan Rodríguez · Área de Soporte IT — Siigo</p>
+  </footer>
+</main>
+
+<script type="module" src="js/config.js"></script>
+<script type="module" src="js/fixture.js"></script>
+<script type="module" src="js/utils.js"></script>
+<script type="module" src="js/store.js"></script>
+<script type="module" src="js/puntos.js"></script>
+<script type="module">
+import { CONFIG } from './js/config.js';
+(async () => {
+  await Store.init();
+  const yo = await Store.sesion();
+  if (!U.requiereSesion(yo)) return;
+  document.getElementById('avatar').textContent = U.iniciales(yo.nombre);
+  document.getElementById('salir').onclick = async () => { await Store.logout(); location.href = 'index.html'; };
+  if (yo.rol === 'admin') {
+    const a = document.createElement('a'); a.href = 'admin.html'; a.textContent = '🛠 Admin';
+    document.getElementById('nav').appendChild(a);
+  }
+  document.getElementById('tesorero').textContent = CONFIG.TESORERO;
+
+  async function cargar() {
+    const [usuarios, todas, resultados, ajustes] = await Promise.all([
+      Store.usuarios(), Store.todasPredicciones(), Store.resultados(), Store.ajustes()
+    ]);
+    const activos = usuarios.filter(u => u.estado === 'activo');
+    const botes = Puntos.bote(activos);
+    const tabla = Puntos.tabla(usuarios, todas, resultados, ajustes);
+
+    /* --- mi estado ------------------------------------------- */
+    const miCuota = (CONFIG.CUOTAS[yo.moneda] || { valor: 0 }).valor;
+    const yoActual = usuarios.find(u => u.uid === yo.uid) || yo;
+    document.getElementById('mi-estado').className = 'aviso ' + (yoActual.pagado ? 'aviso--verde' : 'aviso--dorado');
+    document.getElementById('mi-estado').innerHTML = yoActual.pagado
+      ? `✅ Tu cuota de <b>${U.moneda(miCuota, yo.moneda)}</b> ya figura como pagada. ¡A jugar tranquilo!`
+      : `⏳ Tienes pendiente tu cuota de <b>${U.moneda(miCuota, yo.moneda)}</b>. Entrégala al tesorero y él la marcará como pagada.`;
+
+    /* --- botes por moneda ------------------------------------- */
+    document.getElementById('botes').innerHTML = Object.entries(botes).map(([cod, b]) => `
+      <div class="panel panel--relleno">
+        <div class="kpi" style="border:0;padding:0;background:transparent">
+          <div class="valor">${U.moneda(b.total, cod)}</div>
+          <div class="titulo">${U.esc((CONFIG.CUOTAS[cod] || { nombre: cod }).nombre)} · bote total</div>
+        </div>
+        <p class="ayuda" style="margin-top:10px">
+          Recaudado: <b style="color:var(--verde-claro)">${U.moneda(b.pagado, cod)}</b> ·
+          Pendiente: <b style="color:var(--dorado)">${U.moneda(b.total - b.pagado, cod)}</b><br>
+          ${b.alDia} de ${b.personas} participante(s) al día.
+        </p>
+      </div>`).join('') || '<div class="aviso">Aún no hay participantes activos.</div>';
+
+    /* --- quién le debe a quién --------------------------------- */
+    const filasPago = activos
+      .slice()
+      .sort((a, b) => (a.pagado === b.pagado) ? a.nombre.localeCompare(b.nombre, 'es') : (a.pagado ? 1 : -1))
+      .map(u => {
+        const cuota = (CONFIG.CUOTAS[u.moneda] || { valor: 0 }).valor;
+        return `<tr class="${u.uid === yo.uid ? 'yo' : ''}">
+          <td><b>${U.esc(u.nombre)}</b>${u.vinculo === 'externo' ? ' <span class="etiqueta">Invitado</span>' : ''}</td>
+          <td>${U.esc(u.area || '')}</td>
+          <td class="num">${U.moneda(cuota, u.moneda)}</td>
+          <td>${u.pagado
+            ? '<span class="etiqueta etiqueta--fin">PAGADO ✓</span>'
+            : '<span class="etiqueta etiqueta--dorada">PENDIENTE</span>'}</td>
+          <td class="sub">${u.pagado
+            ? 'Nada pendiente'
+            : `${U.esc(u.nombre.split(' ')[0])} → le debe ${U.moneda(cuota, u.moneda)} al tesorero`}</td>
+        </tr>`;
+      }).join('');
+    document.getElementById('cuerpo-pagos').innerHTML =
+      filasPago || '<tr><td colspan="5" class="centro sub">Sin participantes todavía.</td></tr>';
+
+    /* --- proyección de premios ---------------------------------- */
+    document.getElementById('nota-premios').textContent = tabla.length
+      ? 'Si el Mundial terminara hoy, el bote de CADA moneda se repartiría así (reparto ' +
+        CONFIG.PREMIOS.map(p => p.pct + '%').join(' / ') + '):'
+      : 'Cuando haya tabla, aquí verás cómo quedaría el reparto.';
+
+    const ganadores = pos => {
+      if (!tabla.length) return null;
+      if (pos === 'ultimo') return tabla[tabla.length - 1];
+      return tabla[pos];
+    };
+    document.getElementById('premios').innerHTML = CONFIG.PREMIOS.map((p, i) => {
+      const f = ganadores(i === CONFIG.PREMIOS.length - 1 ? 'ultimo' : i);
+      const montos = Object.entries(botes)
+        .map(([cod, b]) => U.moneda(Math.round(b.total * p.pct / 100), cod)).join(' · ') || '—';
+      return `<div class="panel panel--relleno centro">
+        <div style="font-size:30px">${p.puesto.split(' ')[0]}</div>
+        <div style="font-weight:800;margin:4px 0">${U.esc(p.puesto.replace(/^\S+\s/, ''))} · ${p.pct}%</div>
+        <div class="sub">${f ? '👤 ' + U.esc(f.nombre) + ` (${f.pts} pts)` : 'Por definir'}</div>
+        <div class="ayuda" style="margin-top:8px">${montos}</div>
+      </div>`;
+    }).join('');
+  }
+
+  await cargar();
+  Store.enCambios(cargar);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+rules_version = '2';
+
+// ============================================================
+// POLLA MUNDIALISTA SIIGO 2026 — REGLAS DE SEGURIDAD FIRESTORE
+// Pegar en: Consola Firebase → Firestore → Reglas → Publicar.
+//
+// Antes de publicar, crear A MANO (en la consola) el documento:
+//   configuracion/admins  →  { correos: ["nicolas.nieto@siigo.com",
+//                                        "juan.rodriguez.pe@siigo.com"] }
+// (correos en minúsculas; debe coincidir con CONFIG.ADMINS).
+// ============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Funciones auxiliares -------------------------
+    function conectado() {
+      return request.auth != null;
+    }
+
+    function correo() {
+      return request.auth.token.email.lower();
+    }
+
+    function esAdmin() {
+      return conectado()
+        && exists(/databases/$(database)/documents/configuracion/admins)
+        && correo() in get(/databases/$(database)/documents/configuracion/admins).data.correos;
+    }
+
+    function esSiigo() {
+      return correo().matches('.*@siigo[.]com$');
+    }
+
+    // El bono de campeón cierra con el pitazo inicial:
+    // 11 de junio de 2026, 19:00 UTC.
+    function antesDelPitazoInicial() {
+      return request.time < timestamp.date(2026, 6, 11) + duration.value(19, 'h');
+    }
+
+    // Un partido queda BLOQUEADO en el servidor apenas exista su
+    // documento en `resultados` (lo crea el admin o la sincronización
+    // con la API al iniciar el partido).
+    function partidoBloqueado(pid) {
+      return exists(/databases/$(database)/documents/resultados/$(pid));
+    }
+
+    // ---------- usuarios/{uid} -------------------------------
+    match /usuarios/{uid} {
+      // La tabla y las cuentas son visibles para todo participante.
+      allow read: if conectado();
+
+      // Registro: solo el propio usuario, con campos controlados.
+      allow create: if conectado()
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && request.resource.data.correo == correo();
+
+      // El usuario solo puede cambiar su moneda y su campeón
+      // (el campeón, únicamente antes del partido inaugural).
+      allow update: if conectado() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['moneda', 'campeon'])
+        && (!request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['campeon']) || antesDelPitazoInicial());
+
+      // El admin gestiona aprobación, pagos y roles.
+      allow update: if esAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['estado', 'pagado', 'rol', 'moneda']);
+
+      allow delete: if esAdmin();
+    }
+
+    // ---------- predicciones/{uid__pid} ----------------------
+    match /predicciones/{docId} {
+      // Lectura para participantes conectados (la interfaz no
+      // muestra pronósticos ajenos antes del cierre, y los puntos
+      // solo se calculan con partidos finalizados).
+      allow read: if conectado();
+
+      // Crear/editar: solo el dueño, con marcador válido, y solo
+      // mientras el partido NO esté bloqueado en el servidor.
+      allow create, update: if conectado()
+        && request.resource.data.uid == request.auth.uid
+        && docId == request.auth.uid + '__' + request.resource.data.pid
+        && request.resource.data.gl is int
+        && request.resource.data.gv is int
+        && request.resource.data.gl >= 0 && request.resource.data.gl <= 15
+        && request.resource.data.gv >= 0 && request.resource.data.gv <= 15
+        && !partidoBloqueado(request.resource.data.pid);
+
+      allow delete: if esAdmin();
+    }
+
+    // ---------- resultados/{pid} -----------------------------
+    // Marcadores reales: solo escriben los administradores
+    // (a mano o vía sincronización con la API).
+    match /resultados/{pid} {
+      allow read: if conectado();
+      allow write: if esAdmin();
+    }
+
+    // ---------- ajustes/{pid} --------------------------------
+    // Horas confirmadas, sedes y equipos de eliminatorias.
+    match /ajustes/{pid} {
+      allow read: if conectado();
+      allow write: if esAdmin();
+    }
+
+    // ---------- publico/tabla --------------------------------
+    // Tabla oficial publicada por el admin.
+    match /publico/{doc} {
+      allow read: if conectado();
+      allow write: if esAdmin();
+    }
+
+    // ---------- configuracion/* ------------------------------
+    // Solo se edita desde la consola de Firebase.
+    match /configuracion/{doc} {
+      allow read: if conectado();
+      allow write: if false;
+    }
+
+    // Todo lo demás, cerrado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
