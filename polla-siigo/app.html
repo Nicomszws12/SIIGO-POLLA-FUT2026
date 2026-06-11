@@ -251,20 +251,68 @@ import { CONFIG } from './js/config.js';
 
   function renderStats(pid) {
     const preds = predsByPartido[pid] || [];
-    if (!preds.length) return `<div class="partido__stats" style="font-size:13px;color:var(--tinta-3);margin:8px 12px">Sin pronósticos todavía</div>`;
-    let local = 0, draw = 0, away = 0;
+    if (!preds.length) return `<div class="partido__stats">Sin pronósticos todavía</div>`;
+    let local = 0, draw = 0, away = 0, sumGl = 0, sumGv = 0, processed = 0;
+    const exactCounts = {};
     for (const pr of preds) {
       const gl = Number(pr.gl), gv = Number(pr.gv);
       if (isNaN(gl) || isNaN(gv)) continue;
+      processed++;
+      sumGl += gl; sumGv += gv;
       if (gl > gv) local++; else if (gl === gv) draw++; else away++;
+      const key = `${gl}-${gv}`; exactCounts[key] = (exactCounts[key] || 0) + 1;
     }
-    const total = local + draw + away || 1;
+    const total = Math.max(1, local + draw + away);
     const pct = n => Math.round((n / total) * 100);
-    return `<div class="partido__stats" style="display:flex;gap:10px;align-items:center;margin:8px 12px;font-size:13px">
-      <span style="color:var(--verde-claro)">🏠 ${pct(local)}%</span>
-      <span style="color:var(--tinta)">🤝 ${pct(draw)}%</span>
-      <span style="color:var(--azul)">✈ ${pct(away)}%</span>
-      <span style="margin-left:auto;color:var(--sub)" class="sub">${preds.length} pron.</span>
+    const avgGl = processed ? (sumGl / processed).toFixed(2) : '—';
+    const avgGv = processed ? (sumGv / processed).toFixed(2) : '—';
+    const mostExact = Object.entries(exactCounts).sort((a, b) => b[1] - a[1])[0] || [null, 0];
+
+    const bar = `<div class="stat-bar">
+      <div class="stat-seg stat-home" style="width:${pct(local)}%"></div>
+      <div class="stat-seg stat-draw" style="width:${pct(draw)}%"></div>
+      <div class="stat-seg stat-away" style="width:${pct(away)}%"></div>
+    </div>`;
+
+    // Exact/result accuracy (only if match has final result)
+    const res = resultados[pid];
+    let exactPct = '—', resultPct = '—';
+    if (res && res.estado === 'finalizado' && processed) {
+      const ag = Number(res.gl || 0), bv = Number(res.gv || 0);
+      let exactHits = 0, resultHits = 0;
+      const actualSign = ag > bv ? 1 : ag === bv ? 0 : -1;
+      for (const pr of preds) {
+        const gl = Number(pr.gl), gv = Number(pr.gv);
+        if (isNaN(gl) || isNaN(gv)) continue;
+        if (gl === ag && gv === bv) exactHits++;
+        const sign = gl > gv ? 1 : gl === gv ? 0 : -1;
+        if (sign === actualSign) resultHits++;
+      }
+      exactPct = Math.round((exactHits / processed) * 100) + '%';
+      resultPct = Math.round((resultHits / processed) * 100) + '%';
+    }
+
+    // Distribution by exact score (top 6)
+    const entries = Object.entries(exactCounts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+    const distHtml = entries.map(([k, v]) => {
+      const w = Math.max(6, Math.round((v / (processed || 1)) * 100));
+      return `<div class="score-dist"><span class="score-label">${k}</span><div class="score-bar" style="width:${w}%"></div><span class="sub">${v}</span></div>`;
+    }).join('');
+
+    return `<div class="partido__stats">
+      ${bar}
+      <div class="stat-row">
+        <span style="color:var(--verde-claro)">🏠 ${pct(local)}%</span>
+        <span style="color:var(--tinta)">🤝 ${pct(draw)}%</span>
+        <span style="color:var(--azul)">✈ ${pct(away)}%</span>
+        <span class="stat-small">Avg pronóstico: ${avgGl}–${avgGv}</span>
+        <span class="sub">${processed} pron.</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-small">Exacto más común: ${mostExact[0] || '—'} (${mostExact[1] || 0})</span>
+        <span class="stat-small" style="margin-left:auto">Aciertos: Exacto ${exactPct} · Resultado ${resultPct}</span>
+      </div>
+      <div style="margin-top:6px">${distHtml}</div>
     </div>`;
   }
 

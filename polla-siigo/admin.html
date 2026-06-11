@@ -62,7 +62,7 @@
     <div id="pendientes-caja"></div>
     <div class="tabla-envoltura" style="margin-top:14px">
       <table class="tabla">
-        <thead><tr><th>Participante</th><th>Correo</th><th>Vínculo</th><th>Cuota</th><th>Pagado</th><th>Rol</th><th></th></tr></thead>
+        <thead><tr><th>Participante</th><th>Correo</th><th>Vínculo</th><th>Cuota</th><th>Pagado</th><th>Rol</th><th>Campeón</th><th></th></tr></thead>
         <tbody id="cuerpo-gente"></tbody>
       </table>
     </div>
@@ -294,7 +294,7 @@ import { CONFIG } from './js/config.js';
       ? `<div class="aviso aviso--dorado">🔔 <b>${pendientes.length} invitado(s)</b> esperando aprobación.</div>` : '';
     document.getElementById('cuerpo-gente').innerHTML = usuarios.map(u => {
       const cuota = (CONFIG.CUOTAS[u.moneda] || { valor: 0 }).valor;
-      return `<tr data-uid="${u.uid}" data-nombre="${U.esc(u.nombre)}">
+      return `<tr data-uid="${u.uid}" data-nombre="${U.esc(u.nombre)}" data-campeon="${u.campeon || ''}">
         <td><b>${U.esc(u.nombre)}</b> <button class="boton boton--fantasma boton--mini" data-editar-nombre type="button" style="padding:0 5px; border:none; background:transparent" title="Editar nombre">✏️</button><br><span class="sub">${U.esc(u.area || '')}</span></td>
         <td class="sub">${U.esc(u.correo)}</td>
         <td>${u.vinculo === 'externo'
@@ -310,6 +310,7 @@ import { CONFIG } from './js/config.js';
             <option value="admin" ${u.rol === 'admin' ? 'selected' : ''}>Admin</option>
           </select>
         </td>
+        <td class="centro"><span title="${u.campeon ? FIXTURE.equipo(u.campeon).n : 'Sin elegir'}">${u.campeon ? FIXTURE.equipo(u.campeon).b + ' ' + u.campeon : '—'}</span> <button class="boton boton--fantasma boton--mini" data-editar-campeon type="button" style="padding:0 5px; border:none; background:transparent" title="Editar campeón">✏️</button></td>
         <td><button class="boton boton--rojo boton--mini" data-borrar title="Eliminar participante" type="button">✕</button></td>
       </tr>`;
     }).join('') || '<tr><td colspan="7" class="centro sub">Nadie registrado aún.</td></tr>';
@@ -334,6 +335,20 @@ import { CONFIG } from './js/config.js';
         if (nuevoNombre !== null && nuevoNombre.trim() !== '' && nuevoNombre.trim() !== nombreActual) {
           await Store.actualizarUsuario(uid, { nombre: nuevoNombre.trim() });
           U.toast('Nombre actualizado ✓'); pintarGente();
+        }
+        return;
+      }
+      if (e.target.closest('[data-editar-campeon]')) {
+        const actual = tr.dataset.campeon;
+        const nuevo = prompt('Ingresa el CÓDIGO de 3 letras del país campeón (ej. ARG, COL, ESP, MEX, BRA).\nDéjalo en blanco para quitarlo:', actual);
+        if (nuevo !== null) {
+          const code = nuevo.trim().toUpperCase();
+          if (code === '' || FIXTURE.equipos[code]) {
+            await Store.actualizarUsuario(uid, { campeon: code === '' ? null : code });
+            U.toast('Campeón actualizado ✓'); pintarGente();
+          } else {
+            U.toast('Código inválido. Usa las 3 letras oficiales (ej. COL).', 'error');
+          }
         }
         return;
       }
