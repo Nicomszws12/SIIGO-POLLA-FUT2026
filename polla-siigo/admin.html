@@ -104,36 +104,24 @@
     <div class="aviso" id="aviso-emailjs" style="margin-top:16px"></div>
   </section>
 
-  <!-- ====== PRONÓSTICOS ====== -->
+  <!-- ====== PRONÓSTICOS (SOLO ADMINS) ====== -->
   <section id="tab-pronosticos" class="oculto">
-    <p class="sub">Edita los pronósticos de cualquier participante, incluso si el partido ya está en juego o finalizado.</p>
-    <div class="fila-flex" style="margin-bottom: 16px;">
-      <select id="sel-pron-user" class="mini-input" style="width: 250px;">
-        <option value="">-- Selecciona participante --</option>
-      </select>
-      <select id="sel-pron-match" class="mini-input" style="width: 300px;" disabled>
-        <option value="">-- Selecciona partido --</option>
-      </select>
+    <div class="chips" id="chips-pron">
+      <button class="chip" data-sub="historial" type="button">📋 Historial de cambios</button>
+      <button class="chip" data-sub="trampas" type="button">⚠️ Intentos sospechosos</button>
+      <button class="chip activo" data-sub="todos" type="button">🔮 Todos los pronósticos</button>
     </div>
-    <div id="caja-editar-pron" class="panel panel--relleno oculto">
-      <h3 id="pron-match-title" style="margin-top:0"></h3>
-      <div class="admin-fila" style="margin-top: 10px;">
-        <b id="pron-L-name" style="min-width:140px; text-align:right"></b>
-        <input class="mini-input" type="number" min="0" id="pron-gl" placeholder="–" style="width:64px">
-        <span>–</span>
-        <input class="mini-input" type="number" min="0" id="pron-gv" placeholder="–" style="width:64px">
-        <b id="pron-V-name" style="min-width:140px"></b>
-        <button class="boton boton--verde boton--mini" id="b-guardar-pron" type="button">Guardar Pronóstico</button>
-      </div>
-    </div>
+    <p class="sub" id="desc-pron" style="margin:8px 0 4px"></p>
+    <div id="lista-pron"></div>
   </section>
 
   <!-- ====== ZONA DE CONTROL ====== -->
   <div class="panel panel--relleno" style="margin-top:26px">
-    <h2>🏁 Cierre de jornada</h2>
-    <p class="sub">Publica la tabla oficial (queda congelada para todos hasta la próxima publicación) y, en modo demo, carga datos de prueba.</p>
+    <h2>🏁 Zona de Control</h2>
+    <p class="sub">Administra funciones globales de la polla y datos de la tabla oficial.</p>
     <div class="fila-flex">
       <button class="boton" id="b-publicar" type="button">📌 Publicar tabla oficial</button>
+      <button class="boton boton--verde" id="b-toggle-campeon" type="button">🏆 Abrir "Mi Campeón"</button>
       <button class="boton boton--fantasma" id="b-ejemplo" type="button">🧪 Cargar datos de ejemplo (demo)</button>
       <button class="boton boton--rojo boton--mini empuja" id="b-borrar-demo" type="button">🗑 Vaciar datos demo</button>
     </div>
@@ -170,14 +158,15 @@ import { CONFIG } from './js/config.js';
 
   async function cargar() {
     [resultados, ajustes] = await Promise.all([Store.resultados(), Store.ajustes()]);
-    pintarRes(); pintarCal(); pintarGente(); pintarPrevios();
+    pintarRes(); pintarCal(); pintarGente(); pintarPrevios(); pintarControl();
   }
 
   /* ============ TABS ============ */
+  const TABS = ['resultados', 'gente', 'calendario', 'correos', 'pronosticos'];
   document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
     document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('activo', x === b));
-    ['resultados', 'gente', 'calendario', 'correos', 'pronosticos'].forEach(t =>
-      document.getElementById('tab-' + t).classList.toggle('oculto', b.dataset.tab !== t));
+    TABS.forEach(t => document.getElementById('tab-' + t).classList.toggle('oculto', b.dataset.tab !== t));
+    if (b.dataset.tab === 'pronosticos') pintarPron();
   });
 
   /* ============ RESULTADOS ============ */
@@ -314,7 +303,6 @@ import { CONFIG } from './js/config.js';
         <td><button class="boton boton--rojo boton--mini" data-borrar title="Eliminar participante" type="button">✕</button></td>
       </tr>`;
     }).join('') || '<tr><td colspan="7" class="centro sub">Nadie registrado aún.</td></tr>';
-    pintarSelPronosticos(usuarios);
   }
 
   document.getElementById('cuerpo-gente').addEventListener('click', async e => {
@@ -469,74 +457,30 @@ import { CONFIG } from './js/config.js';
     this.disabled = false;
   };
 
-  /* ============ PRONÓSTICOS ============ */
-  let pronTodas = {};
-  
-  function pintarSelPronosticos(usuarios) {
-    const selU = document.getElementById('sel-pron-user');
-    const uActivos = usuarios.filter(u => u.estado === 'activo');
-    const uVal = selU.value;
-    selU.innerHTML = '<option value="">-- Selecciona participante --</option>' + 
-      uActivos.map(u => `<option value="${u.uid}">${U.esc(u.nombre)}</option>`).join('');
-    if (uActivos.find(u => u.uid === uVal)) selU.value = uVal;
+  /* ============ PUBLICAR / DEMO ============ */
+  function pintarControl() {
+    const override = ajustes.GLOBAL ? ajustes.GLOBAL.campeonAbierto : null;
+    const abierto = override !== null ? override : (new Date(CONFIG.REGLAS.cierreCampeonUTC) > new Date());
+    const btn = document.getElementById('b-toggle-campeon');
+    if (abierto) {
+      btn.textContent = '🔒 Cerrar "Mi Campeón"';
+      btn.className = 'boton boton--rojo';
+    } else {
+      btn.textContent = '🏆 Abrir "Mi Campeón"';
+      btn.className = 'boton boton--verde';
+    }
   }
 
-  document.getElementById('sel-pron-user').onchange = async e => {
-    const uid = e.target.value;
-    const selM = document.getElementById('sel-pron-match');
-    const caja = document.getElementById('caja-editar-pron');
-    caja.classList.add('oculto');
-    if (!uid) { selM.disabled = true; selM.innerHTML = '<option value="">-- Selecciona partido --</option>'; return; }
-    
-    pronTodas = await Store.predicciones(uid);
-    const lista = partidosEf().filter(p => p.local && p.visitante)
-      .sort((a, b) => (a.utc || '9').localeCompare(b.utc || '9'));
-      
-    selM.disabled = false;
-    selM.innerHTML = '<option value="">-- Selecciona partido --</option>' + lista.map(p => {
-      const L = FIXTURE.equipo(p.local), V = FIXTURE.equipo(p.visitante);
-      const pr = pronTodas[p.id];
-      const resTxt = pr ? ` (Pronóstico: ${pr.gl}-${pr.gv})` : ' (Sin pronóstico)';
-      return `<option value="${p.id}">${L.n} vs ${V.n}${resTxt}</option>`;
-    }).join('');
-  };
-
-  document.getElementById('sel-pron-match').onchange = e => {
-    const pid = e.target.value;
-    const caja = document.getElementById('caja-editar-pron');
-    if (!pid) { caja.classList.add('oculto'); return; }
-    
-    const p = partidosEf().find(x => x.id === pid);
-    const L = FIXTURE.equipo(p.local), V = FIXTURE.equipo(p.visitante);
-    const pr = pronTodas[pid] || { gl: '', gv: '' };
-    
-    document.getElementById('pron-match-title').innerHTML = `${L.b} ${L.n} vs ${V.n} ${V.b}`;
-    document.getElementById('pron-L-name').innerHTML = `${L.b} ${L.n}`;
-    document.getElementById('pron-V-name').innerHTML = `${V.n} ${V.b}`;
-    document.getElementById('pron-gl').value = pr.gl !== undefined ? pr.gl : '';
-    document.getElementById('pron-gv').value = pr.gv !== undefined ? pr.gv : '';
-    caja.classList.remove('oculto');
-  };
-
-  document.getElementById('b-guardar-pron').onclick = async () => {
-    const uid = document.getElementById('sel-pron-user').value;
-    const pid = document.getElementById('sel-pron-match').value;
-    const gl = parseInt(document.getElementById('pron-gl').value, 10);
-    const gv = parseInt(document.getElementById('pron-gv').value, 10);
-    
-    if (!uid || !pid) return;
-    if (isNaN(gl) || isNaN(gv)) { U.toast('Ingresa goles válidos.', 'error'); return; }
-    
+  document.getElementById('b-toggle-campeon').onclick = async () => {
+    const override = ajustes.GLOBAL ? ajustes.GLOBAL.campeonAbierto : null;
+    const abierto = override !== null ? override : (new Date(CONFIG.REGLAS.cierreCampeonUTC) > new Date());
     try {
-      await Store.guardarPrediccion(uid, pid, gl, gv);
-      U.toast('Pronóstico editado correctamente ✓');
-      document.getElementById('sel-pron-user').dispatchEvent(new Event('change'));
-    } catch (err) {
-      U.toast('Error: ' + err.message, 'error');
-    }
+      await Store.guardarAjuste('GLOBAL', { campeonAbierto: !abierto });
+      U.toast(!abierto ? 'Sección "Mi Campeón" habilitada 🔓' : 'Sección "Mi Campeón" cerrada 🔒');
+      await cargar();
+    } catch(err) { U.toast(err.message, 'error'); }
   };
 
-  /* ============ PUBLICAR / DEMO ============ */
   document.getElementById('b-publicar').onclick = async () => {
     const [usuarios, todas] = await Promise.all([Store.usuarios(), Store.todasPredicciones()]);
     const filas = Puntos.tabla(usuarios, todas, resultados, ajustes);
@@ -556,6 +500,167 @@ import { CONFIG } from './js/config.js';
     localStorage.removeItem('pollaSiigo'); sessionStorage.clear();
     location.href = 'index.html';
   };
+
+  /* ============ PRONÓSTICOS ============ */
+  let subPron = 'todos';
+
+  document.getElementById('chips-pron').addEventListener('click', e => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    subPron = b.dataset.sub;
+    document.querySelectorAll('#chips-pron .chip').forEach(c => c.classList.toggle('activo', c === b));
+    pintarPron();
+  });
+  // Activar chip inicial "todos"
+  document.querySelectorAll('#chips-pron .chip').forEach(c =>
+    c.classList.toggle('activo', c.dataset.sub === 'todos'));
+
+  async function pintarPron() {
+    const desc = document.getElementById('desc-pron');
+    const lista = document.getElementById('lista-pron');
+    lista.innerHTML = '<div class="aviso">Cargando…</div>';
+
+    try {
+      if (subPron === 'todos') {
+        desc.textContent = 'Pronósticos de todos los participantes por partido (orden cronológico).';
+        const [todas, usuarios] = await Promise.all([Store.todasPredicciones(), Store.usuarios()]);
+        const mapNombre = {};
+        usuarios.forEach(u => { mapNombre[u.uid] = u.nombre; });
+
+        const partidos = FIXTURE.partidos
+          .map(p => Puntos.conAjustes(p, ajustes))
+          .filter(p => p.local && p.visitante)
+          .sort((a, b) => (a.utc || '9').localeCompare(b.utc || '9'));
+
+        const bloques = partidos.map(p => {
+          const res = resultados[p.id] || {};
+          const L = FIXTURE.equipo(p.local), V = FIXTURE.equipo(p.visitante);
+          const estado = U.estadoPartido(p, res);
+          const preds = Object.entries(todas)
+            .map(([uid, pMap]) => ({ uid, pred: pMap[p.id] }))
+            .filter(x => x.pred)
+            .sort((a, b) => (mapNombre[a.uid] || '').localeCompare(mapNombre[b.uid] || '', 'es'));
+          if (!preds.length) return '';
+
+          const badgeEstado = res.estado === 'finalizado'
+            ? `<span class="etiqueta etiqueta--fin">✅ ${res.gl}–${res.gv}</span>`
+            : res.estado === 'en_juego'
+            ? `<span class="etiqueta" style="background:var(--rojo);color:#fff">🔴 En juego ${res.minuto ? res.minuto + "'" : ''}</span>`
+            : estado === 'cerrado'
+            ? `<span class="etiqueta">🔒 Cerrado</span>`
+            : `<span class="etiqueta" style="color:var(--tinta-3)">📅 ${p.utc ? U.horaLocal(p.utc) : 'sin hora'}</span>`;
+
+          const filas = preds.map(({ uid, pred }) => {
+            const cal = res.estado === 'finalizado' ? Puntos.calificar(pred, res, p.fase) : null;
+            const color = cal
+              ? (cal.tipo === 'exacto' ? 'var(--verde-claro)' : cal.tipo === 'resultado' ? 'var(--dorado)' : 'var(--rojo)')
+              : 'var(--tinta)';
+            const icono = cal
+              ? (cal.tipo === 'exacto' ? '🎯' : cal.tipo === 'resultado' ? '✔' : '❌')
+              : (estado === 'programado' ? '⏳' : '🔒');
+            const pts = cal && cal.pts > 0 ? `<span style="font-size:11px;color:${color}">+${cal.pts}pts</span>` : '';
+            return `<tr>
+              <td>${U.esc(mapNombre[uid] || uid)}</td>
+              <td class="num" style="font-family:var(--fuente-marcador);font-weight:900;color:${color};font-size:16px">${pred.gl} – ${pred.gv}</td>
+              <td class="centro">${icono} ${pts}</td>
+            </tr>`;
+          }).join('');
+
+          return `
+            <div style="margin-bottom:18px;border:1px solid var(--linea);border-radius:10px;overflow:hidden">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:rgba(255,255,255,.04);border-bottom:1px solid var(--linea)">
+                <b style="font-size:14px">${L.b} ${U.esc(L.n)} <span style="color:var(--tinta-3);font-weight:400">vs</span> ${U.esc(V.n)} ${V.b}</b>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span class="sub">${p.utc ? U.diaLocal(p.utc) : ''}</span>
+                  ${badgeEstado}
+                  <span class="sub">${preds.length} pronósticos</span>
+                </div>
+              </div>
+              <table class="tabla" style="margin:0">
+                <thead><tr><th>Participante</th><th>Pronóstico</th><th>Resultado</th></tr></thead>
+                <tbody>${filas}</tbody>
+              </table>
+            </div>`;
+        }).filter(Boolean);
+
+        lista.innerHTML = bloques.length
+          ? bloques.join('')
+          : '<div class="aviso">Sin pronósticos registrados todavía.</div>';
+
+      } else if (subPron === 'historial') {
+        desc.textContent = 'Registro de cada vez que alguien guardó o cambió un pronóstico.';
+        const historial = typeof Store.historialPredicciones === 'function'
+          ? await Store.historialPredicciones()
+          : [];
+        if (!historial.length) {
+          lista.innerHTML = '<div class="aviso">Sin cambios registrados todavía. Los nuevos pronósticos quedarán aquí.</div>';
+          return;
+        }
+        lista.innerHTML = `
+          <div class="tabla-envoltura">
+            <table class="tabla">
+              <thead><tr>
+                <th>Fecha y hora</th><th>Participante</th><th>Partido</th>
+                <th>Nuevo</th><th>Anterior</th>
+              </tr></thead>
+              <tbody>${historial.map(h => {
+                const p = FIXTURE.partidos.find(x => x.id === h.pid);
+                const L = p && p.local ? FIXTURE.equipo(p.local) : null;
+                const V = p && p.visitante ? FIXTURE.equipo(p.visitante) : null;
+                const partido = (L && V) ? `${L.b} ${U.esc(L.n)} vs ${U.esc(V.n)} ${V.b}` : U.esc(h.pid);
+                const esEdicion = h.glPrev !== null && h.glPrev !== undefined;
+                return `<tr>
+                  <td class="sub" style="white-space:nowrap">${new Date(h.t).toLocaleString('es-CO')}</td>
+                  <td><b>${U.esc(h.nombre || h.uid || '—')}</b></td>
+                  <td style="font-size:13px">${partido}</td>
+                  <td class="num" style="color:var(--dorado);font-weight:900">${h.gl} – ${h.gv}</td>
+                  <td class="num sub">${esEdicion
+                    ? `<span style="color:var(--tinta-3)">${h.glPrev} – ${h.gvPrev} →</span>`
+                    : '<span class="etiqueta" style="font-size:10px">nuevo</span>'}</td>
+                </tr>`;
+              }).join('')}</tbody>
+            </table>
+          </div>`;
+
+      } else if (subPron === 'trampas') {
+        desc.textContent = 'Intentos de guardar pronósticos después de que el partido ya inició.';
+        const trampas = typeof Store.intentosTrampa === 'function'
+          ? await Store.intentosTrampa()
+          : [];
+        if (!trampas.length) {
+          lista.innerHTML = '<div class="aviso aviso--dorado">✅ Sin intentos sospechosos registrados.</div>';
+          return;
+        }
+        lista.innerHTML = `
+          <div class="tabla-envoltura">
+            <table class="tabla">
+              <thead><tr>
+                <th>Fecha del intento</th><th>Participante</th><th>Partido</th>
+                <th>Marcador intentado</th><th>Minutos tarde</th>
+              </tr></thead>
+              <tbody>${trampas.map(it => {
+                const p = FIXTURE.partidos.find(x => x.id === it.pid);
+                const L = p && p.local ? FIXTURE.equipo(p.local) : null;
+                const V = p && p.visitante ? FIXTURE.equipo(p.visitante) : null;
+                const partido = (L && V) ? `${L.b} ${U.esc(L.n)} vs ${U.esc(V.n)} ${V.b}` : U.esc(it.pid);
+                const minutosTarde = p && p.utc
+                  ? Math.round((it.t - new Date(p.utc).getTime()) / 60000)
+                  : '?';
+                return `<tr>
+                  <td class="sub" style="white-space:nowrap">${new Date(it.t).toLocaleString('es-CO')}</td>
+                  <td><b style="color:var(--rojo)">${U.esc(it.nombre || it.uid || '—')}</b></td>
+                  <td style="font-size:13px">${partido}</td>
+                  <td class="num" style="color:var(--rojo);font-weight:900">${it.gl} – ${it.gv}</td>
+                  <td class="num">${minutosTarde} min</td>
+                </tr>`;
+              }).join('')}</tbody>
+            </table>
+          </div>`;
+      }
+    } catch (err) {
+      lista.innerHTML = `<div class="aviso" style="color:var(--rojo)">⚠️ Error al cargar: ${U.esc(err.message)}</div>`;
+      console.error('pintarPron:', err);
+    }
+  }
 
   await cargar();
   Store.enCambios(cargar);

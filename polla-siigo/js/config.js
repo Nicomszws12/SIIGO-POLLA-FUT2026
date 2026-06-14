@@ -26,12 +26,12 @@ export const CONFIG = {
        correos (no falla).
     ---------------------------------------------------------- */
   EMAILJS: {
-    publicKey: 'ZN_Wc-KP2FtEIoFWx',
-    serviceId: 'service_123',
+    publicKey: 'xS4hfhsR687frj7Go',
+    serviceId: 'service_xl4ducr',
     plantillas: {
-      bienvenida: '{{nombre}}, {{correo}}, {{url}}',      // variables: {{nombre}}, {{correo}}, {{url}}
-      recordatorio: '{{nombre}}, {{correo}}, {{partidos}}, {{url}}',    // variables: {{nombre}}, {{correo}}, {{partidos}}, {{url}}
-      resumen: '{{nombre}}, {{correo}}, {{resultados}}, {{posicion}}, {{puntos}}, {{url}}'          // variables: {{nombre}}, {{correo}}, {{resultados}}, {{posicion}}, {{puntos}}, {{url}}
+      bienvenida: 'template_wb45nao',   // 👈 CAMBIA ESTO por el ID real de la plantilla de bienvenida
+      recordatorio: 'template_co7pdcn', // 👈 CAMBIA ESTO por el ID real de la plantilla de recordatorio
+      resumen: 'template_3456789'       // 👈 CAMBIA ESTO por el ID real de la plantilla de resumen
     }
   },
 
@@ -44,9 +44,9 @@ export const CONFIG = {
      plan gratuito 100 peticiones/día.
   ---------------------------------------------------------- */
   API_FUTBOL: {
-    proxyUrl: 'https://polla-proxy.polla-proxy-siigo.workers.dev', // Worker desplegado
-    apiKey: '',   // La llave NO va aquí cuando usas el proxy seguro
-    intervaloSegundos: 120,       // frecuencia de refresco con partidos en vivo (ajustada para evitar rate limits)
+    proxyUrl: 'https://v3.football.api-sports.io', // Conexión directa a la API
+    apiKey: '47169c301b3ef4359062e17f45a994fa',   // Llave oficial de API-Football
+    intervaloSegundos: 60,        // frecuencia de refresco con partidos en vivo
     sincronizaCalendario: true    // permite al admin traer fechas/horas oficiales
   },
 
@@ -57,14 +57,14 @@ export const CONFIG = {
     grupos:        { exacto: 3, resultado: 1 },  // marcador exacto / acertar ganador o empate
     eliminatorias: { exacto: 5, resultado: 2 },  // se califica el marcador a los 90' (+prórroga si la hay, sin penales)
     bonusCampeon: 10,                            // por acertar el campeón (se elige antes del primer partido)
-    cierreCampeonUTC: '2026-06-11T19:00:00Z'     // pitazo inicial México vs Sudáfrica
+    cierreCampeonUTC: '2026-06-19T23:59:59Z'     // Extendido al 19 de junio 2026 (23:59 Colombia)
   },
 
   /* Desempates, en orden: 1) puntos, 2) marcadores exactos,
      3) aciertos de resultado, 4) registro más antiguo. */
 
   /* ----------------------------------------------------------
-     7. DINERO — solo registro, NO se hacen transacciones aquí.
+     7. LA PLATA — solo registro, NO se hacen transacciones aquí.
      Cada quien elige su moneda al registrarse y paga la cuota
      equivalente por fuera de la app (Nequi, transferencia, etc.)
      al tesorero. Valores editables.
@@ -82,7 +82,7 @@ export const CONFIG = {
   },
   TESORERO: 'Nicolás Nieto Daza (Soporte IT)',
 
-  /* Reparto del bote en porcentajes (deben sumar 100). */
+  /* Reparto de la vaca (acumulado) en porcentajes (deben sumar 100). */
   PREMIOS: [
     { puesto: '🥇 1.er lugar', pct: 60 },
     { puesto: '🥈 2.º lugar', pct: 25 },
@@ -93,7 +93,6 @@ export const CONFIG = {
   /* ----------------------------------------------------------
      8. VARIOS
   ---------------------------------------------------------- */
-  URL_PUBLICA: 'https://polla-siigo.web.app',  // cambiar al dominio final, ej. https://polla.siigo.com
   MAX_GOLES: 15,                                // tope del marcador en un pronóstico
   VERSION: '1.0.0'
 };

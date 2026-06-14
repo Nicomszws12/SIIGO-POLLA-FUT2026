@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cuentas del bote — Polla Siigo 2026</title>
+  <title>La Vaca (Cuentas) — Polla Siigo 2026</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
   <link rel="stylesheet" href="css/estilos.css">
 </head>
@@ -17,6 +17,7 @@
       <a href="tabla.html">Tabla</a>
       <a href="cuentas.html" class="activo">Cuentas</a>
       <a href="reglas.html">Reglas</a>
+      <a href="lobby.html">🏟 Salas</a>
     </nav>
     <div class="usuario-mini">
       <div class="avatar" id="avatar">?</div>
@@ -28,20 +29,20 @@
 <main class="contenedor">
 
   <section style="margin-top:26px">
-    <h1 style="margin:0;font-size:26px">💰 Las cuentas claras</h1>
-    <p class="sub">La app <b>solo registra</b> el dinero: las cuotas se entregan por fuera
-      (Nequi, transferencia, efectivo) al tesorero — <b id="tesorero"></b>. Aquí todos vemos
-      cuánto hay en el bote, quién ya pagó y cómo se repartirían los premios.</p>
+    <h1 style="margin:0;font-size:26px">💰 Las cuentas claras (y el chocolate espeso)</h1>
+    <p class="sub">La app <b>solo registra</b> la plata: las cuotas se entregan por fuera
+      (Nequi, Daviplata, transferencia o en efectivo) al tesorero — <b id="tesorero"></b>. Aquí todos vemos
+      de cuánto es la vaca (acumulado), quién ya pagó y cómo se repartiría el premio.</p>
   </section>
 
   <div class="aviso" id="mi-estado"></div>
 
-  <h2 style="font-size:19px;margin:26px 0 4px">🏦 El bote, por moneda</h2>
-  <p class="sub">Cada quien juega en su moneda. El bote de cada moneda se reparte entre quienes pagaron en ella.</p>
+  <h2 style="font-size:19px;margin:26px 0 4px">🏦 La Vaca (Acumulado)</h2>
+  <p class="sub">Cada quien juega en su moneda. La plata de cada moneda se reparte entre quienes se pusieron al día.</p>
   <div class="rejilla rejilla--3" id="botes"></div>
 
-  <h2 style="font-size:19px;margin:30px 0 4px">📒 ¿Quién le debe a quién?</h2>
-  <p class="sub">Pendientes de pago al tesorero. Cuando termine el Mundial, el tesorero le paga a los ganadores según el reparto.</p>
+  <h2 style="font-size:19px;margin:30px 0 4px">📒 ¿Quién está colgado con la plata?</h2>
+  <p class="sub">Los que faltan por ponerse al día con el tesorero. Cuando termine el Mundial, el tesorero le paga a los ganadores.</p>
   <div class="tabla-envoltura">
     <table class="tabla">
       <thead><tr><th>Participante</th><th>Área</th><th>Cuota</th><th>Estado</th><th>Movimiento</th></tr></thead>
@@ -77,9 +78,17 @@ import { CONFIG } from './js/config.js';
   }
   document.getElementById('tesorero').textContent = CONFIG.TESORERO;
 
+  const salaId = new URLSearchParams(location.search).get('sala') || localStorage.getItem('salaActiva') || 'siigo';
+  if (salaId !== 'siigo') {
+    ['app.html', 'tabla.html'].forEach(page => {
+      const a = document.querySelector(`a[href="${page}"]`);
+      if (a) a.href = `${page}?sala=${salaId}`;
+    });
+  }
+
   async function cargar() {
     const [usuarios, todas, resultados, ajustes] = await Promise.all([
-      Store.usuarios(), Store.todasPredicciones(), Store.resultados(), Store.ajustes()
+      Store.usuariosSala(salaId), Store.todasPrediccionesSala(salaId), Store.resultados(), Store.ajustes()
     ]);
     const activos = usuarios.filter(u => u.estado === 'activo');
     const botes = Puntos.bote(activos);
@@ -98,7 +107,7 @@ import { CONFIG } from './js/config.js';
       <div class="panel panel--relleno">
         <div class="kpi" style="border:0;padding:0;background:transparent">
           <div class="valor">${U.moneda(b.total, cod)}</div>
-          <div class="titulo">${U.esc((CONFIG.CUOTAS[cod] || { nombre: cod }).nombre)} · bote total</div>
+          <div class="titulo">${U.esc((CONFIG.CUOTAS[cod] || { nombre: cod }).nombre)} · en la vaca</div>
         </div>
         <p class="ayuda" style="margin-top:10px">
           Recaudado: <b style="color:var(--verde-claro)">${U.moneda(b.pagado, cod)}</b> ·
@@ -130,7 +139,7 @@ import { CONFIG } from './js/config.js';
 
     /* --- proyección de premios ---------------------------------- */
     document.getElementById('nota-premios').textContent = tabla.length
-      ? 'Si el Mundial terminara hoy, el bote de CADA moneda se repartiría así (reparto ' +
+      ? 'Si el Mundial terminara hoy, la vaca de CADA moneda se repartiría así (reparto ' +
         CONFIG.PREMIOS.map(p => p.pct + '%').join(' / ') + '):'
       : 'Cuando haya tabla, aquí verás cómo quedaría el reparto.';
 

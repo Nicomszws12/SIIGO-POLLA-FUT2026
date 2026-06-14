@@ -57,10 +57,23 @@ const Puntos = {
         });
         let bono = 0;
         if (campeonReal && u.campeon === campeonReal) { bono = CONFIG.REGLAS.bonusCampeon; pts += bono; }
+
+        // Racha: partidos finalizados consecutivos (más reciente primero) con pts > 0
+        const finalizados = FIXTURE.partidos
+          .filter(p => p.local && p.visitante && resultados[p.id]?.estado === 'finalizado')
+          .sort((a, b) => (b.utc || b.fecha + 'Z').localeCompare(a.utc || a.fecha + 'Z'));
+        let racha = 0;
+        for (const p of finalizados) {
+          const pr = preds[p.id];
+          if (!pr) break;
+          const c = this.calificar(pr, resultados[p.id], p.fase);
+          if (c.pts > 0) racha++; else break;
+        }
+
         return {
           uid: u.uid, nombre: u.nombre, area: u.area, vinculo: u.vinculo,
           moneda: u.moneda, pagado: !!u.pagado, campeon: u.campeon,
-          pts, exactos, aciertos, jugadas, bono, creado: u.creado || 0
+          pts, exactos, aciertos, jugadas, bono, racha, creado: u.creado || 0
         };
       })
       .sort((a, b) =>

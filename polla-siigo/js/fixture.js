@@ -16,29 +16,29 @@
 const f = c => `<img src="https://flagcdn.com/24x18/${c}.png" style="width:20px;vertical-align:middle;border-radius:2px;margin:0 4px" alt="flag">`;
 const EQUIPOS = {
   // Grupo A
-  MEX:{n:'México',b:f('mx'),g:'A'}, RSA:{n:'Sudáfrica',b:f('za'),g:'A'}, KOR:{n:'Corea del Sur',b:f('kr'),g:'A'}, CZE:{n:'Chequia',b:f('cz'),g:'A'},
+  MEX:{n:'México',n_en:'Mexico',b:f('mx'),g:'A'}, RSA:{n:'Sudáfrica',n_en:'South Africa',b:f('za'),g:'A'}, KOR:{n:'Corea del Sur',n_en:'South Korea',b:f('kr'),g:'A'}, CZE:{n:'Chequia',n_en:'Czech Republic',b:f('cz'),g:'A'},
   // Grupo B
-  CAN:{n:'Canadá',b:f('ca'),g:'B'}, BIH:{n:'Bosnia y Herzegovina',b:f('ba'),g:'B'}, QAT:{n:'Catar',b:f('qa'),g:'B'}, SUI:{n:'Suiza',b:f('ch'),g:'B'},
+  CAN:{n:'Canadá',n_en:'Canada',b:f('ca'),g:'B'}, BIH:{n:'Bosnia y Herzegovina',n_en:'Bosnia and Herzegovina',b:f('ba'),g:'B'}, QAT:{n:'Catar',n_en:'Qatar',b:f('qa'),g:'B'}, SUI:{n:'Suiza',n_en:'Switzerland',b:f('ch'),g:'B'},
   // Grupo C
-  BRA:{n:'Brasil',b:f('br'),g:'C'}, MAR:{n:'Marruecos',b:f('ma'),g:'C'}, HAI:{n:'Haití',b:f('ht'),g:'C'}, SCO:{n:'Escocia',b:f('gb-sct'),g:'C'},
+  BRA:{n:'Brasil',n_en:'Brazil',b:f('br'),g:'C'}, MAR:{n:'Marruecos',n_en:'Morocco',b:f('ma'),g:'C'}, HAI:{n:'Haití',n_en:'Haiti',b:f('ht'),g:'C'}, SCO:{n:'Escocia',n_en:'Scotland',b:f('gb-sct'),g:'C'},
   // Grupo D
-  USA:{n:'Estados Unidos',b:f('us'),g:'D'}, PAR:{n:'Paraguay',b:f('py'),g:'D'}, AUS:{n:'Australia',b:f('au'),g:'D'}, TUR:{n:'Turquía',b:f('tr'),g:'D'},
+  USA:{n:'Estados Unidos',n_en:'USA',b:f('us'),g:'D'}, PAR:{n:'Paraguay',n_en:'Paraguay',b:f('py'),g:'D'}, AUS:{n:'Australia',n_en:'Australia',b:f('au'),g:'D'}, TUR:{n:'Turquía',n_en:'Turkey',b:f('tr'),g:'D'},
   // Grupo E
-  GER:{n:'Alemania',b:f('de'),g:'E'}, CUW:{n:'Curazao',b:f('cw'),g:'E'}, CIV:{n:'Costa de Marfil',b:f('ci'),g:'E'}, ECU:{n:'Ecuador',b:f('ec'),g:'E'},
+  GER:{n:'Alemania',n_en:'Germany',b:f('de'),g:'E'}, CUW:{n:'Curazao',n_en:'Curacao',b:f('cw'),g:'E'}, CIV:{n:'Costa de Marfil',n_en:'Ivory Coast',b:f('ci'),g:'E'}, ECU:{n:'Ecuador',n_en:'Ecuador',b:f('ec'),g:'E'},
   // Grupo F
-  NED:{n:'Países Bajos',b:f('nl'),g:'F'}, JPN:{n:'Japón',b:f('jp'),g:'F'}, SWE:{n:'Suecia',b:f('se'),g:'F'}, TUN:{n:'Túnez',b:f('tn'),g:'F'},
+  NED:{n:'Países Bajos',n_en:'Netherlands',b:f('nl'),g:'F'}, JPN:{n:'Japón',n_en:'Japan',b:f('jp'),g:'F'}, SWE:{n:'Suecia',n_en:'Sweden',b:f('se'),g:'F'}, TUN:{n:'Túnez',n_en:'Tunisia',b:f('tn'),g:'F'},
   // Grupo G
-  BEL:{n:'Bélgica',b:f('be'),g:'G'}, EGY:{n:'Egipto',b:f('eg'),g:'G'}, IRN:{n:'Irán',b:f('ir'),g:'G'}, NZL:{n:'Nueva Zelanda',b:f('nz'),g:'G'},
+  BEL:{n:'Bélgica',n_en:'Belgium',b:f('be'),g:'G'}, EGY:{n:'Egipto',n_en:'Egypt',b:f('eg'),g:'G'}, IRN:{n:'Irán',n_en:'Iran',b:f('ir'),g:'G'}, NZL:{n:'Nueva Zelanda',n_en:'New Zealand',b:f('nz'),g:'G'},
   // Grupo H
-  ESP:{n:'España',b:f('es'),g:'H'}, CPV:{n:'Cabo Verde',b:f('cv'),g:'H'}, KSA:{n:'Arabia Saudita',b:f('sa'),g:'H'}, URU:{n:'Uruguay',b:f('uy'),g:'H'},
+  ESP:{n:'España',n_en:'Spain',b:f('es'),g:'H'}, CPV:{n:'Cabo Verde',n_en:'Cape Verde',b:f('cv'),g:'H'}, KSA:{n:'Arabia Saudita',n_en:'Saudi Arabia',b:f('sa'),g:'H'}, URU:{n:'Uruguay',n_en:'Uruguay',b:f('uy'),g:'H'},
   // Grupo I
-  FRA:{n:'Francia',b:f('fr'),g:'I'}, SEN:{n:'Senegal',b:f('sn'),g:'I'}, IRQ:{n:'Irak',b:f('iq'),g:'I'}, NOR:{n:'Noruega',b:f('no'),g:'I'},
+  FRA:{n:'Francia',n_en:'France',b:f('fr'),g:'I'}, SEN:{n:'Senegal',n_en:'Senegal',b:f('sn'),g:'I'}, IRQ:{n:'Irak',n_en:'Iraq',b:f('iq'),g:'I'}, NOR:{n:'Noruega',n_en:'Norway',b:f('no'),g:'I'},
   // Grupo J
-  ARG:{n:'Argentina',b:f('ar'),g:'J'}, ALG:{n:'Argelia',b:f('dz'),g:'J'}, AUT:{n:'Austria',b:f('at'),g:'J'}, JOR:{n:'Jordania',b:f('jo'),g:'J'},
+  ARG:{n:'Argentina',n_en:'Argentina',b:f('ar'),g:'J'}, ALG:{n:'Argelia',n_en:'Algeria',b:f('dz'),g:'J'}, AUT:{n:'Austria',n_en:'Austria',b:f('at'),g:'J'}, JOR:{n:'Jordania',n_en:'Jordan',b:f('jo'),g:'J'},
   // Grupo K
-  POR:{n:'Portugal',b:f('pt'),g:'K'}, COD:{n:'RD Congo',b:f('cd'),g:'K'}, UZB:{n:'Uzbekistán',b:f('uz'),g:'K'}, COL:{n:'Colombia',b:f('co'),g:'K'},
+  POR:{n:'Portugal',n_en:'Portugal',b:f('pt'),g:'K'}, COD:{n:'RD Congo',n_en:'DR Congo',b:f('cd'),g:'K'}, UZB:{n:'Uzbekistán',n_en:'Uzbekistan',b:f('uz'),g:'K'}, COL:{n:'Colombia',n_en:'Colombia',b:f('co'),g:'K'},
   // Grupo L
-  ENG:{n:'Inglaterra',b:f('gb-eng'),g:'L'}, CRO:{n:'Croacia',b:f('hr'),g:'L'}, GHA:{n:'Ghana',b:f('gh'),g:'L'}, PAN:{n:'Panamá',b:f('pa'),g:'L'}
+  ENG:{n:'Inglaterra',n_en:'England',b:f('gb-eng'),g:'L'}, CRO:{n:'Croacia',n_en:'Croatia',b:f('hr'),g:'L'}, GHA:{n:'Ghana',n_en:'Ghana',b:f('gh'),g:'L'}, PAN:{n:'Panamá',n_en:'Panama',b:f('pa'),g:'L'}
 };
 
 /* Posiciones de sorteo 1-2-3-4 por grupo (definen los cruces). */

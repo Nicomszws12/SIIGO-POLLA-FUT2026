@@ -17,6 +17,7 @@
       <a href="tabla.html" class="activo">Tabla</a>
       <a href="cuentas.html">Cuentas</a>
       <a href="reglas.html">Reglas</a>
+      <a href="lobby.html">🏟 Salas</a>
     </nav>
     <div class="usuario-mini">
       <div class="avatar" id="avatar">?</div>
@@ -24,6 +25,12 @@
     </div>
   </div>
 </header>
+
+<div id="sala-bar" style="background:rgba(255,255,255,.04);border-bottom:1px solid var(--linea);padding:7px 24px;display:none;align-items:center;gap:10px;font-size:13px">
+  <span style="color:var(--tinta-3)">Liga activa:</span>
+  <b id="sala-bar-nombre" style="color:var(--dorado)">—</b>
+  <a href="lobby.html" class="boton boton--fantasma boton--mini" style="margin-left:auto">⇄ Cambiar sala</a>
+</div>
 
 <main class="contenedor">
 
@@ -48,7 +55,7 @@
           <th>Pts</th><th>🎯 Exactos</th><th>✔ Resultados</th><th>Jugadas</th>
         </tr>
       </thead>
-      <tbody id="cuerpo" style="cursor:pointer" title="Haz clic en un participante para ver sus pronósticos"></tbody>
+      <tbody id="cuerpo"></tbody>
     </table>
   </div>
 
@@ -78,17 +85,32 @@ import { CONFIG } from './js/config.js';
     document.getElementById('nav').appendChild(a);
   }
 
+  /* --- sala activa -------------------------------------------- */
+  const salaId = new URLSearchParams(location.search).get('sala') || localStorage.getItem('salaActiva') || 'siigo';
+  if (salaId !== 'siigo') {
+    const bar = document.getElementById('sala-bar');
+    bar.style.display = 'flex';
+    Store.salaPorId(salaId).then(sala => {
+      if (sala) document.getElementById('sala-bar-nombre').textContent = sala.nombre;
+    });
+  }
+  // Mantener salaId en los enlaces de nav
+  ['app.html','cuentas.html'].forEach(page => {
+    const a = document.querySelector(`a[href="${page}"]`);
+    if (a && salaId !== 'siigo') a.href = `${page}?sala=${salaId}`;
+  });
+
   let filas = [], filtro = '';
 
   async function cargar() {
-    const publicada = await Store.tablaPublicada();
+    const publicada = salaId === 'siigo' ? await Store.tablaPublicada() : null;
     if (publicada && publicada.filas && publicada.filas.length) {
       filas = publicada.filas;
       document.getElementById('nota-tabla').textContent =
         `Tabla oficial publicada el ${new Date(publicada.t).toLocaleString('es-CO')}.`;
     } else {
       const [usuarios, todas, resultados, ajustes] = await Promise.all([
-        Store.usuarios(), Store.todasPredicciones(), Store.resultados(), Store.ajustes()
+        Store.usuariosSala(salaId), Store.todasPrediccionesSala(salaId), Store.resultados(), Store.ajustes()
       ]);
       filas = Puntos.tabla(usuarios, todas, resultados, ajustes);
       document.getElementById('nota-tabla').textContent =
@@ -114,18 +136,27 @@ import { CONFIG } from './js/config.js';
       </div>`;
     }).join('');
 
-    document.getElementById('cuerpo').innerHTML = vista.length ? vista.map(f => `
-      <tr class="${f.uid === yo.uid ? 'yo' : ''}">
+    document.getElementById('cuerpo').innerHTML = vista.length ? vista.map(f => {
+      const esYo = f.uid === yo.uid;
+      const racha = f.racha || 0;
+      const rachaHtml = racha >= 5
+        ? ` <span class="racha racha--grande" title="🔥 ¡${racha} partidos seguidos sumando!">🔥🔥🔥</span>`
+        : racha >= 3
+        ? ` <span class="racha" title="${racha} partidos seguidos sumando">🔥</span>`
+        : '';
+      return `
+      <tr class="${esYo ? 'yo' : ''}" data-uid="${f.uid}">
         <td class="pos num">${f.pos}</td>
-        <td><b>${U.esc(f.nombre)}</b>${f.uid === yo.uid ? ' <span class="etiqueta etiqueta--dorada">TÚ</span>' : ''}
-            ${f.vinculo === 'externo' ? ' <span class="etiqueta">Invitado</span>' : ''}</td>
+        <td><b>${U.esc(f.nombre)}</b>${esYo ? ' <span class="etiqueta etiqueta--dorada">TÚ</span>' : ''}
+            ${f.vinculo === 'externo' ? ' <span class="etiqueta">Invitado</span>' : ''}${rachaHtml}</td>
         <td>${U.esc(f.area || '')}</td>
         <td>${f.campeon ? FIXTURE.equipo(f.campeon).b + ' ' + FIXTURE.equipo(f.campeon).n : '—'}</td>
         <td class="num" style="color:var(--dorado);font-weight:900">${f.pts}</td>
         <td class="num">${f.exactos}</td>
         <td class="num">${f.aciertos}</td>
         <td class="num">${f.jugadas}</td>
-      </tr>`).join('')
+      </tr>`;
+    }).join('')
       : '<tr><td colspan="8" class="centro sub">Todavía no hay participantes en esta vista.</td></tr>';
   }
 
@@ -136,7 +167,10 @@ import { CONFIG } from './js/config.js';
     pintar();
   });
 
-  // Ver pronósticos de los usuarios al hacer clic en su fila
+  // Los pronósticos de otros son visibles solo para partidos ya iniciados
+  document.getElementById('cuerpo').style.cursor = 'pointer';
+  document.getElementById('cuerpo').title = 'Haz clic para ver los pronósticos de partidos ya iniciados';
+
   document.getElementById('cuerpo').addEventListener('click', async e => {
     const tr = e.target.closest('tr[data-uid]');
     if (!tr) return;
@@ -144,7 +178,7 @@ import { CONFIG } from './js/config.js';
 
     const sig = tr.nextElementSibling;
     if (sig && sig.classList.contains('fila-pronosticos')) {
-      sig.remove(); // Si ya estaba abierto, lo cierra
+      sig.remove();
       return;
     }
     document.querySelectorAll('.fila-pronosticos').forEach(el => el.remove());
@@ -153,73 +187,79 @@ import { CONFIG } from './js/config.js';
     if (!usuario) return;
 
     const [todas, resultados, ajustes] = await Promise.all([
-      Store.todasPredicciones(), Store.resultados(), Store.ajustes()
+      Store.todasPrediccionesSala(salaId), Store.resultados(), Store.ajustes()
     ]);
     const susPreds = todas[uid] || {};
 
     const lista = FIXTURE.partidos
       .map(p => Puntos.conAjustes(p, ajustes))
       .filter(p => p.local && p.visitante)
-      .sort((a,b) => {
-         // Ordenar para mostrar los partidos más recientes primero
-         const tA = new Date(a.utc || '2099').getTime();
-         const tB = new Date(b.utc || '2099').getTime();
-         const ahora = Date.now();
-         return Math.abs(tA - ahora) - Math.abs(tB - ahora);
+      .sort((a, b) => {
+        const tA = new Date(a.utc || '2099').getTime();
+        const tB = new Date(b.utc || '2099').getTime();
+        const ahora = Date.now();
+        return Math.abs(tA - ahora) - Math.abs(tB - ahora);
       })
       .map(p => {
-         const pr = susPreds[p.id];
-         const res = resultados[p.id];
-         const L = FIXTURE.equipo(p.local);
-         const V = FIXTURE.equipo(p.visitante);
-         const abierto = U.abierto(p, res);
-         
-         // Seguridad: No dejar ver pronósticos ajenos de partidos sin jugar
-         if (abierto && uid !== yo.uid && yo.rol !== 'admin') return null;
-         if (!pr) return null;
-         
-         let color = 'var(--tinta)';
-         let icono = '⏳';
-         if (res && res.estado === 'finalizado') {
-           const cal = Puntos.calificar(pr, res, p.fase);
-           color = cal.tipo === 'exacto' ? 'var(--verde-claro)' : (cal.tipo === 'resultado' ? 'var(--dorado)' : 'var(--rojo)');
-           icono = cal.tipo === 'exacto' ? '🎯' : (cal.tipo === 'resultado' ? '✔' : '❌');
-         }
-         
-         return `
-           <div style="background:rgba(0,0,0,0.15); border:1px solid var(--linea); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:8px;">
-             <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--tinta-2); border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:6px;">
-               <span style="display:flex; align-items:center; gap:6px;">${L.b} ${U.esc(L.n)} vs ${U.esc(V.n)} ${V.b}</span>
-               <span title="Estado del pronóstico">${icono}</span>
-             </div>
-             <div style="display:flex; justify-content:space-around; align-items:center;">
-               <div style="text-align:center;">
-                 <div style="font-size:10px; color:var(--tinta-3); letter-spacing:1px; text-transform:uppercase;">Pronóstico</div>
-                 <div style="font-size:18px; font-family:var(--fuente-marcador); font-weight:900; color:${color}; margin-top:2px;">${pr.gl} – ${pr.gv}</div>
-               </div>
-               ${res && res.estado === 'finalizado' ? `
-               <div style="text-align:center; border-left:1px solid var(--linea); padding-left:15px;">
-                 <div style="font-size:10px; color:var(--tinta-3); letter-spacing:1px; text-transform:uppercase;">Real</div>
-                 <div style="font-size:18px; font-family:var(--fuente-marcador); font-weight:900; color:var(--tinta); margin-top:2px;">${res.gl} – ${res.gv}</div>
-               </div>` : `
-               <div style="text-align:center; border-left:1px solid var(--linea); padding-left:15px; opacity:0.4;">
-                 <div style="font-size:10px; color:var(--tinta-3); letter-spacing:1px; text-transform:uppercase;">Real</div>
-                 <div style="font-size:14px; font-family:var(--fuente-marcador); font-weight:700; color:var(--tinta); margin-top:4px;">VS</div>
-               </div>`}
-             </div>
-           </div>`;
-      }).filter(Boolean).slice(0, 12);
+        const pr = susPreds[p.id];
+        const res = resultados[p.id];
+        const L = FIXTURE.equipo(p.local);
+        const V = FIXTURE.equipo(p.visitante);
+        const estado = U.estadoPartido(p, res);
+
+        // Solo mostrar pronósticos de partidos que ya iniciaron o finalizaron.
+        // Los admins ven todos; los jugadores solo los de partidos no programados.
+        const partidoIniciado = estado !== 'programado' && estado !== 'sin_definir';
+        if (!pr || (!partidoIniciado && yo.rol !== 'admin')) return null;
+
+        let color = 'var(--tinta)';
+        let icono = '⏳';
+        if (res && res.estado === 'finalizado') {
+          const cal = Puntos.calificar(pr, res, p.fase);
+          color = cal.tipo === 'exacto' ? 'var(--verde-claro)' : (cal.tipo === 'resultado' ? 'var(--dorado)' : 'var(--rojo)');
+          icono = cal.tipo === 'exacto' ? '🎯' : (cal.tipo === 'resultado' ? '✔' : '❌');
+        } else if (estado === 'en_juego' || estado === 'cerrado') {
+          icono = '🔒';
+        }
+
+        return `
+          <div style="background:rgba(0,0,0,0.15); border:1px solid var(--linea); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--tinta-2); border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:6px;">
+              <span style="display:flex; align-items:center; gap:6px;">${L.b} ${U.esc(L.n)} vs ${U.esc(V.n)} ${V.b}</span>
+              <span title="Estado del pronóstico">${icono}</span>
+            </div>
+            <div style="display:flex; justify-content:space-around; align-items:center;">
+              <div style="text-align:center;">
+                <div style="font-size:10px; color:var(--tinta-3); letter-spacing:1px; text-transform:uppercase;">Pronóstico</div>
+                <div style="font-size:18px; font-family:var(--fuente-marcador); font-weight:900; color:${color}; margin-top:2px;">${pr.gl} – ${pr.gv}</div>
+              </div>
+              ${res && res.estado === 'finalizado' ? `
+              <div style="text-align:center; border-left:1px solid var(--linea); padding-left:15px;">
+                <div style="font-size:10px; color:var(--tinta-3); letter-spacing:1px; text-transform:uppercase;">Real</div>
+                <div style="font-size:18px; font-family:var(--fuente-marcador); font-weight:900; color:var(--tinta); margin-top:2px;">${res.gl} – ${res.gv}</div>
+              </div>` : `
+              <div style="text-align:center; border-left:1px solid var(--linea); padding-left:15px; opacity:0.4;">
+                <div style="font-size:10px; color:var(--tinta-3); letter-spacing:1px; text-transform:uppercase;">Real</div>
+                <div style="font-size:14px; font-family:var(--fuente-marcador); font-weight:700; color:var(--tinta); margin-top:4px;">VS</div>
+              </div>`}
+            </div>
+          </div>`;
+      }).filter(Boolean).slice(0, 20);
+
+    const nota = yo.rol !== 'admin'
+      ? '<span style="font-size:12px; color:var(--tinta-3)">Solo se muestran partidos ya iniciados 🔒</span>'
+      : `<span style="font-size:12px; color:var(--tinta-3);">Mostrando ${lista.length} partidos</span>`;
 
     const trDetalle = document.createElement('tr');
     trDetalle.className = 'fila-pronosticos';
     trDetalle.innerHTML = `<td colspan="8" style="padding:18px; background:var(--superficie-2); border-bottom:3px solid var(--azul); box-shadow:inset 0 4px 15px rgba(0,0,0,0.15);">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-        <h4 style="margin:0; color:var(--dorado); font-size:16px;">🔮 Últimos pronósticos de ${U.esc(usuario.nombre.split(' ')[0])}</h4>
-        <span style="font-size:12px; color:var(--tinta-3);">Mostrando los últimos ${lista.length}</span>
+        <h4 style="margin:0; color:var(--dorado); font-size:16px;">🔮 Pronósticos de ${U.esc(usuario.nombre.split(' ')[0])}</h4>
+        ${nota}
       </div>
-      ${lista.length 
-        ? `<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:12px;">${lista.join('')}</div>` 
-        : '<div class="aviso" style="margin:0">Sin pronósticos públicos recientes.</div>'}
+      ${lista.length
+        ? `<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:12px;">${lista.join('')}</div>`
+        : '<div class="aviso" style="margin:0">Sin pronósticos de partidos iniciados todavía.</div>'}
     </td>`;
     tr.after(trDetalle);
   });

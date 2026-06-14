@@ -130,6 +130,30 @@ const Store = (() => {
     },
 
     /* Datos ficticios para probar tabla, cuentas y correos. */
+    async reclamarSincronizacion() { return true; },
+
+    async registrarIntentoTrampa(uid, nombre, pid, gl, gv, motivo) {
+      const d = _db();
+      if (!d.intentos_trampa) d.intentos_trampa = [];
+      d.intentos_trampa.push({ uid, nombre, pid, gl, gv, motivo, t: Date.now() });
+      _save(d);
+    },
+
+    async intentosTrampa() {
+      return (_db().intentos_trampa || []).slice().sort((a, b) => b.t - a.t);
+    },
+
+    async registrarHistorial(uid, nombre, pid, gl, gv, glPrev, gvPrev) {
+      const d = _db();
+      if (!d.historial_predicciones) d.historial_predicciones = [];
+      d.historial_predicciones.push({ uid, nombre, pid, gl, gv, glPrev: glPrev ?? null, gvPrev: gvPrev ?? null, t: Date.now() });
+      _save(d);
+    },
+
+    async historialPredicciones() {
+      return (_db().historial_predicciones || []).slice().sort((a, b) => b.t - a.t);
+    },
+
     async cargarEjemplo() {
       const d = _db();
       const gente = [
@@ -342,7 +366,7 @@ const Store = (() => {
         if (_perfilCache && _perfilCache.uid === uid) Object.assign(_perfilCache, cambios);
       } catch (err) {
         console.error("🔥 Error Firebase (actualizarUsuario):", err);
-        alert("La base de datos bloqueó el cambio de usuario. Revisa el documento 'admins'.\n\nError: " + err.message);
+        alert("La base de datos bloqueó la acción. Si estás eligiendo a tu campeón, revisa que la fecha límite no haya pasado o contacta al administrador.\n\nError: " + err.message);
         throw err;
       }
     },
@@ -453,7 +477,128 @@ const Store = (() => {
       return fdb.collection('resultados').onSnapshot(() => cb());
     },
 
-    async cargarEjemplo() { throw new Error('Los datos de ejemplo solo existen en modo demo.'); }
+    async reclamarSincronizacion() {
+      const ref = fdb.collection('sincronizacion').doc('live');
+      const ahora = Date.now();
+      try {
+        const doc = await ref.get();
+        if (doc.exists && ahora < (doc.data().hasta || 0)) return false;
+        await ref.set({ at: ahora, hasta: ahora + 70000 }); // reclama 70s (un ciclo + margen)
+        return true;
+      } catch { return false; }
+    },
+
+    async cargarEjemplo() { throw new Error('Los datos de ejemplo solo existen en modo demo.'); },
+
+    async registrarIntentoTrampa(uid, nombre, pid, gl, gv, motivo) {
+      try {
+        await fdb.collection('intentos_trampa').add({ uid, nombre, pid, gl, gv, motivo, t: Date.now() });
+      } catch (e) { console.warn('No se pudo registrar intento trampa:', e); }
+    },
+
+    async intentosTrampa() {
+      try {
+        const snap = await fdb.collection('intentos_trampa').orderBy('t', 'desc').limit(200).get();
+        return snap.docs.map(d => d.data());
+      } catch (e) { console.warn('intentosTrampa:', e); return []; }
+    },
+
+    async registrarHistorial(uid, nombre, pid, gl, gv, glPrev, gvPrev) {
+      try {
+        await fdb.collection('historial_predicciones').add({
+          uid, nombre, pid, gl, gv,
+          glPrev: glPrev ?? null, gvPrev: gvPrev ?? null,
+          t: Date.now()
+        });
+      } catch (e) { console.warn('No se pudo registrar historial:', e); }
+    },
+
+    async historialPredicciones() {
+      try {
+        const snap = await fdb.collection('historial_predicciones').orderBy('t', 'desc').limit(500).get();
+        return snap.docs.map(d => d.data());
+      } catch (e) { console.warn('historialPredicciones:', e); return []; }
+    },
+
+    /* ---- SALAS PRIVADAS ------------------------------------------ */
+    async crearSala(adminUid, nombre) {
+      const codigo = Math.random().toString(36).slice(2, 8).toUpperCase();
+      const ref = fdb.collection('salas').doc();
+      const salaId = ref.id;
+      const sala = { salaId, nombre: nombre.trim(), codigo, adminUid, creado: Date.now() };
+      const lote = fdb.batch();
+      lote.set(ref, sala);
+      lote.set(fdb.collection('salaMiembros').doc(`${salaId}__${adminUid}`),
+        { salaId, uid: adminUid, unido: Date.now(), rol: 'admin' });
+      await lote.commit();
+      return sala;
+    },
+
+    async unirseASala(codigo, uid) {
+      const snap = await fdb.collection('salas')
+        .where('codigo', '==', String(codigo).toUpperCase().trim()).limit(1).get();
+      if (snap.empty) throw new Error('Código no encontrado. Pide el código al organizador de la sala.');
+      const sala = snap.docs[0].data();
+      const memRef = fdb.collection('salaMiembros').doc(`${sala.salaId}__${uid}`);
+      if ((await memRef.get()).exists) throw new Error('Ya eres miembro de esta sala.');
+      await memRef.set({ salaId: sala.salaId, uid, unido: Date.now(), rol: 'jugador' });
+      return sala;
+    },
+
+    async misSalas(uid) {
+      const snap = await fdb.collection('salaMiembros').where('uid', '==', uid).get();
+      if (snap.empty) return [];
+      const ids = [...new Set(snap.docs.map(d => d.data().salaId))].slice(0, 10);
+      const salasSnap = await fdb.collection('salas')
+        .where(fb.firestore.FieldPath.documentId(), 'in', ids).get();
+      return salasSnap.docs.map(d => d.data());
+    },
+
+    async salaPorId(salaId) {
+      if (salaId === 'siigo') return { salaId: 'siigo', nombre: 'Polla Siigo 2026', codigo: null, adminUid: null };
+      const doc = await fdb.collection('salas').doc(salaId).get();
+      return doc.exists ? doc.data() : null;
+    },
+
+    async miembrosDeSSala(salaId) {
+      const snap = await fdb.collection('salaMiembros').where('salaId', '==', salaId).get();
+      return snap.docs.map(d => d.data());
+    },
+
+    async eliminarMiembro(salaId, uid) {
+      await fdb.collection('salaMiembros').doc(`${salaId}__${uid}`).delete();
+    },
+
+    async usuariosSala(salaId) {
+      if (salaId === 'siigo') return this.usuarios();
+      const miembros = await this.miembrosDeSSala(salaId);
+      const uids = miembros.map(m => m.uid).slice(0, 10);
+      if (!uids.length) return [];
+      const s = await fdb.collection('usuarios')
+        .where(fb.firestore.FieldPath.documentId(), 'in', uids).get();
+      return s.docs.map(d => d.data());
+    },
+
+    async guardarPrediccionSala(salaId, uid, pid, gl, gv) {
+      if (salaId === 'siigo') return this.guardarPrediccion(uid, pid, gl, gv);
+      await fdb.collection('salas').doc(salaId).collection('predicciones')
+        .doc(`${uid}__${pid}`).set({ uid, pid, gl, gv, t: Date.now() });
+    },
+
+    async prediccionesSala(salaId, uid) {
+      if (salaId === 'siigo') return this.predicciones(uid);
+      const snap = await fdb.collection('salas').doc(salaId).collection('predicciones')
+        .where('uid', '==', uid).get();
+      const out = {}; snap.docs.forEach(d => out[d.data().pid] = d.data()); return out;
+    },
+
+    async todasPrediccionesSala(salaId) {
+      if (salaId === 'siigo') return this.todasPredicciones();
+      const snap = await fdb.collection('salas').doc(salaId).collection('predicciones').get();
+      const out = {};
+      snap.docs.forEach(d => { const p = d.data(); (out[p.uid] = out[p.uid] || {})[p.pid] = p; });
+      return out;
+    },
   };
 
   /* ========================================================= */

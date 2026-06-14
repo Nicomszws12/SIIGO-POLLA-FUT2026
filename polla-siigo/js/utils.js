@@ -68,6 +68,11 @@ const U = {
     };
   },
 
+  fechaActualizacion(ms) {
+    if (!ms) return '';
+    return new Date(ms).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).replace(',', '');
+  },
+
   /* Estado efectivo de un partido según la hora y los datos. */
   estadoPartido(p, res) {
     if (res && res.estado) return res.estado;            // 'en_juego' | 'finalizado' (puesto por API/admin)

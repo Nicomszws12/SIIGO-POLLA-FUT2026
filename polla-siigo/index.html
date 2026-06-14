@@ -27,11 +27,9 @@
   <section class="heroe">
     <div class="heroe__copa">🏆</div>
     <h1>La Polla Mundialista <span class="acento">Siigo 2026</span></h1>
-    <p class="bajada">48 selecciones, 104 partidos y una sola tabla que importa: la nuestra.
-      Pronostica los marcadores, suma puntos y demuestra quién sabe más de fútbol en Siigo.</p>
-    <div class="marquesina">⏱ El Mundial arranca</div>
-    <div class="countdown" id="countdown" aria-live="polite"></div>
-    <p class="ayuda" id="primer-partido"></p>
+    <p class="bajada">48 selecciones, 104 partidos y una sola tabla que importa: la nuestra.</p>
+    <div class="hero-banner" id="hero-banner"></div>
+    <p class="hero-cta" id="hero-cta"></p>
   </section>
 
   <section class="rejilla rejilla--2" style="align-items:start">
@@ -85,7 +83,7 @@
         </div>
         <button class="boton boton--verde boton--bloque" type="submit">Inscribirme en la polla 🎟</button>
         <p class="ayuda centro" style="margin-top:10px">Al registrarte aceptas las <a href="reglas.html">reglas del juego</a>.
-          El dinero de la cuota se entrega por fuera de la app al tesorero.</p>
+          La plata de la cuota se entrega por fuera de la app al tesorero.</p>
       </form>
     </div>
 
@@ -99,8 +97,8 @@
       <p>2️⃣ &nbsp;<b>Elige tu campeón</b> antes del pitazo inicial: si lo aciertas, son <b>10 puntos</b> extra al final.</p>
       <p>3️⃣ &nbsp;<b>Sigue la tabla en vivo</b>: los marcadores se actualizan en tiempo real y los puntos se calculan solos.</p>
       <div class="aviso aviso--dorado">💰 La cuota se registra en tu moneda (pesos colombianos, mexicanos, chilenos,
-        uruguayos, bolívares y más). La app lleva las cuentas de quién pagó y cuánto hay en el bote,
-        pero <b>no mueve dinero</b>.</div>
+        uruguayos, bolívares y más). La app lleva las cuentas de quién pagó y de cuánto es la vaca,
+        pero <b>no mueve plata</b>.</div>
       <div class="kpis">
         <div class="kpi"><div class="valor">48</div><div class="titulo">Selecciones</div></div>
         <div class="kpi"><div class="valor">104</div><div class="titulo">Partidos</div></div>
@@ -127,28 +125,65 @@ import { CONFIG } from './js/config.js';
 (async () => {
   await Store.init();
 
-  /* Si ya hay sesión, directo a la app */
-  if (await Store.sesion()) { location.href = 'app.html'; return; }
-
-  /* --- Cuenta regresiva al pitazo inicial -------------------- */
-  const objetivo = CONFIG.REGLAS.cierreCampeonUTC;
-  const cd = document.getElementById('countdown');
-  function pintarCuenta() {
-    const t = U.cuentaRegresiva(objetivo);
-    if (t.ms <= 0) {
-      cd.innerHTML = '<div class="marquesina" style="color:var(--rojo);border-color:rgba(224,53,75,.5);background:rgba(224,53,75,.12)">🔴 ¡EL MUNDIAL YA RUEDA!</div>';
-      return;
-    }
-    cd.innerHTML = [['DÍAS', t.d], ['HORAS', t.h], ['MIN', t.m], ['SEG', t.s]]
-      .map(([txt, n]) => `<div class="countdown__celda"><div class="countdown__num">${String(n).padStart(2, '0')}</div><div class="countdown__txt">${txt}</div></div>`)
-      .join('');
+  /* Si ya hay sesión, directo a la sala activa o al lobby */
+  if (await Store.sesion()) {
+    const sala = localStorage.getItem('salaActiva');
+    location.href = sala ? `app.html?sala=${sala}` : 'lobby.html';
+    return;
   }
-  pintarCuenta(); setInterval(pintarCuenta, 1000);
 
-  const inaugural = FIXTURE.partidos[0];
-  document.getElementById('primer-partido').textContent =
-    `Partido inaugural: ${FIXTURE.equipo(inaugural.local).n} vs ${FIXTURE.equipo(inaugural.visitante).n} · ` +
-    `${U.fechaLarga(inaugural.fecha)} · ${U.horaLocal(inaugural.utc)} (tu hora) · ${inaugural.estadio}`;
+  /* --- Banner de partido en vivo / próximo / último ---------- */
+  function pintarHeroBanner() {
+    const ahora = Date.now();
+    const matches = FIXTURE.partidos
+      .filter(p => p.utc && p.local && p.visitante)
+      .sort((a, b) => a.utc.localeCompare(b.utc));
+
+    let match = null, esLive = false, esFuturo = false;
+
+    // ¿Hay partido en vivo ahora? (ventana de 3h desde el pitazo)
+    for (const p of matches) {
+      const t = new Date(p.utc).getTime();
+      if (ahora >= t && ahora <= t + 3 * 3600000) { match = p; esLive = true; break; }
+    }
+    // Si no, el próximo
+    if (!match) {
+      match = matches.find(p => new Date(p.utc).getTime() > ahora);
+      if (match) esFuturo = true;
+    }
+    // Si no, el último jugado
+    if (!match) match = matches.filter(p => new Date(p.utc).getTime() < ahora).slice(-1)[0];
+    if (!match) return;
+
+    const L = FIXTURE.equipo(match.local), V = FIXTURE.equipo(match.visitante);
+    const horaStr = match.utc ? ` · ${U.horaLocal(match.utc)} (tu hora)` : '';
+    const estadioStr = match.estadio ? `🏟 ${match.estadio}${horaStr}` : '';
+
+    document.getElementById('hero-banner').innerHTML = `
+      ${esLive ? `<div class="hero-banner__vivo"><span class="live-dot"></span> EN VIVO AHORA</div>` : ''}
+      <div class="hero-banner__match">
+        <div class="hero-banner__equipo">
+          <div class="hero-banner__ban">${L.b || '⚽'}</div>
+          <div class="hero-banner__nom">${U.esc(L.n)}</div>
+        </div>
+        <div class="hero-banner__vs">VS</div>
+        <div class="hero-banner__equipo">
+          <div class="hero-banner__ban">${V.b || '⚽'}</div>
+          <div class="hero-banner__nom">${U.esc(V.n)}</div>
+        </div>
+      </div>
+      ${estadioStr ? `<div class="hero-banner__estadio">${estadioStr}</div>` : ''}`;
+
+    const ctaEl = document.getElementById('hero-cta');
+    if (esLive) {
+      ctaEl.innerHTML = `¡El Mundial ya rodó y estamos en el partido <b>${U.esc(L.n)} vs ${U.esc(V.n)}</b>! ⚽<br>Entra, pronostica tu marcador y participa por el premio mayor.`;
+    } else if (esFuturo) {
+      ctaEl.innerHTML = `⚽ Próximo partido: <b>${U.esc(L.n)} vs ${U.esc(V.n)}</b> — ¡entra y pronostica antes de que empiece!`;
+    } else {
+      ctaEl.innerHTML = `¡El Mundial rueda a todo vapor! ⚽ Entra, revisa los resultados y sigue sumando puntos en la tabla.`;
+    }
+  }
+  pintarHeroBanner();
 
   /* --- Monedas en el registro -------------------------------- */
   const sel = document.getElementById('r-moneda');
@@ -180,7 +215,8 @@ import { CONFIG } from './js/config.js';
         U.toast('Tu cuenta está pendiente de aprobación por Soporte IT.', 'info');
         await Store.logout();
       } else {
-        location.href = 'app.html';
+        const sala = localStorage.getItem('salaActiva');
+        location.href = sala ? `app.html?sala=${sala}` : 'lobby.html';
       }
     } catch (err) { U.toast(err.message, 'error'); }
     btn.disabled = false;
@@ -200,7 +236,8 @@ import { CONFIG } from './js/config.js';
           U.toast('Tu cuenta está pendiente de aprobación por Soporte IT.', 'info');
           await Store.logout();
         } else {
-          location.href = 'app.html';
+          const sala = localStorage.getItem('salaActiva');
+          location.href = sala ? `app.html?sala=${sala}` : 'lobby.html';
         }
       } catch (err) {
         U.toast(err.message || 'No fue posible iniciar sesión con Google.', 'error');
@@ -241,7 +278,7 @@ import { CONFIG } from './js/config.js';
         alterna(false);
       } else {
         U.toast(`¡Bienvenido(a) a la polla, ${u.nombre.split(' ')[0]}! ⚽`);
-        setTimeout(() => location.href = 'app.html', 600);
+        setTimeout(() => { location.href = 'lobby.html'; }, 600);
       }
     } catch (err) { U.toast(err.message, 'error'); }
     btn.disabled = false;
