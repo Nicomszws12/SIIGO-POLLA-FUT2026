@@ -4,17 +4,40 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mis Salas — Polla Siigo 2026</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇨🇴</text></svg>">
   <link rel="stylesheet" href="css/estilos.css">
   <style>
+    /* TEMA ESPECIAL: DÍA DE PARTIDO COLOMBIA (borrar mañana) */
+    @keyframes pan-bg {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 100% 50%; }
+    }
+    body {
+      background-image: linear-gradient(rgba(11, 13, 20, 0.8), rgba(11, 13, 20, 0.9)), url('https://images.pexels.com/photos/4577179/pexels-photo-4577179.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2');
+      background-size: cover;
+      background-position: center center;
+      background-attachment: fixed;
+      animation: pan-bg 70s linear infinite alternate;
+    }
+    .panel, .partido, .modal-contenido, .campeon-op, .sala-card, .heroe {
+      background: rgba(28, 32, 46, 0.85);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .barra {
+      background: rgba(18, 21, 32, 0.8);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
     .sala-card {
       display: flex; align-items: center; gap: 14px;
       background: var(--superficie-2); border: 1px solid var(--linea);
-      border-radius: 14px; padding: 16px 20px; margin-bottom: 12px;
-      text-decoration: none; color: var(--tinta);
+      border-radius: 14px; padding: 12px 16px; margin-bottom: 12px;
       transition: border-color .2s, transform .15s;
-      cursor: pointer;
     }
+    .sala-card__link { display: flex; flex-grow: 1; align-items: center; gap: 14px; text-decoration: none; color: inherit; cursor: pointer; }
+    .sala-card__link:hover { text-decoration: none; }
     .sala-card:hover { border-color: var(--azul); transform: translateY(-1px); }
     .sala-card--principal { border-color: var(--dorado); }
     .sala-icon { font-size: 28px; flex-shrink: 0; }
@@ -34,10 +57,7 @@
 
 <header class="barra">
   <div class="contenedor barra__fila">
-    <a class="logo" href="lobby.html">
-      <span class="logo__balon">⚽</span>
-      <span>Polla Siigo <small>Mundial 2026</small></span>
-    </a>
+    <a class="logo" href="lobby.html"><span class="logo__balon">🇨🇴</span><span>Polla Siigo <small>Mundial 2026</small></span></a>
     <nav class="nav" id="nav">
       <a href="lobby.html" class="activo">🏟 Mis Salas</a>
     </nav>
@@ -135,28 +155,34 @@ import { CONFIG } from './js/config.js';
     try { salas = await Store.misSalas(yo.uid); } catch (e) { /* ignora */ }
 
     const siigo = `
-      <a class="sala-card sala-card--principal" href="#" data-sala="siigo">
-        <div class="sala-icon">🌍</div>
-        <div class="sala-info">
-          <div class="sala-info__nombre">Polla Siigo 2026 <span class="etiqueta etiqueta--dorada">Principal</span></div>
-          <div class="sala-info__sub">La polla oficial de Siigo · 104 partidos · Mundial FIFA 2026</div>
-        </div>
-        <span style="font-size:20px;color:var(--dorado)">▶</span>
-      </a>`;
+      <div class="sala-card sala-card--principal">
+        <a href="#" data-sala="siigo" class="sala-card__link">
+          <div class="sala-icon">🌍</div>
+          <div class="sala-info">
+            <div class="sala-info__nombre">Polla Siigo 2026 <span class="etiqueta etiqueta--dorada">Principal</span></div>
+            <div class="sala-info__sub">La polla oficial de Siigo · 104 partidos · Mundial FIFA 2026</div>
+          </div>
+          <span style="font-size:20px;color:var(--dorado); margin-left: auto;">▶</span>
+        </a>
+      </div>`;
 
     const privadas = salas.map(s => {
       const esMiAdmin = s.adminUid === yo.uid;
+      const linkAdmin = yo.rol === 'admin' ? `admin.html?sala=${s.salaId}` : `sala-admin.html?sala=${s.salaId}`;
       return `
-        <a class="sala-card" href="#" data-sala="${U.esc(s.salaId)}">
-          <div class="sala-icon">🔒</div>
-          <div class="sala-info">
-            <div class="sala-info__nombre">${U.esc(s.nombre)}${esMiAdmin ? ' <span class="etiqueta">Organizador</span>' : ''}</div>
-            <div class="sala-info__sub" style="display:flex;align-items:center;gap:8px;">
-              ${s.codigo ? `Código: <span class="sala-codigo" title="Clic para copiar" data-copy="${U.esc(s.codigo)}">${U.esc(s.codigo)}</span>` : ''}
+        <div class="sala-card">
+          <a href="#" data-sala="${U.esc(s.salaId)}" class="sala-card__link">
+            <div class="sala-icon">🔒</div>
+            <div class="sala-info">
+              <div class="sala-info__nombre">${U.esc(s.nombre)}${esMiAdmin ? ` <span class="etiqueta">${yo.rol === 'admin' ? 'Super Admin' : 'Organizador'}</span>` : ''}</div>
+              <div class="sala-info__sub" style="display:flex;align-items:center;gap:8px;">
+                ${s.codigo ? `Código: <span class="sala-codigo" title="Clic para copiar" data-copy="${U.esc(s.codigo)}">${U.esc(s.codigo)}</span>` : ''}
+              </div>
             </div>
-          </div>
-          <span style="font-size:20px;color:var(--tinta-2)">▶</span>
-        </a>`;
+            <span style="font-size:20px;color:var(--tinta-2); margin-left: auto;">▶</span>
+          </a>
+          ${esMiAdmin ? `<a href="${linkAdmin}" class="boton boton--fantasma boton--mini" title="Configurar sala" style="flex-shrink: 0;">⚙️</a>` : ''}
+        </div>`;
     }).join('');
 
     cont.innerHTML = siigo + (privadas || '<p class="sub" style="margin:4px 0 0">No tienes salas privadas aún — ¡crea o únete a una abajo!</p>');
@@ -203,6 +229,35 @@ import { CONFIG } from './js/config.js';
   };
 
   await renderSalas();
+})();
+</script>
+
+<!-- TEMA ESPECIAL: DÍA DE PARTIDO COLOMBIA (borrar mañana) -->
+<script>
+(function() {
+  // Cargar confeti si no está
+  if (typeof confetti !== 'function') {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js';
+    s.onload = () => setTimeout(lanzarFiesta, 200);
+    document.head.appendChild(s);
+  } else {
+    lanzarFiesta();
+  }
+
+  function lanzarFiesta() {
+    const coloresTricolor = ['#FFCD00', '#003893', '#CE1126'];
+    function fuegosArtificiales() {
+      const end = Date.now() + (3 * 1000);
+      (function frame() {
+        if (Date.now() > end) return;
+        confetti({ particleCount: 3, angle: 60, spread: 55, origin: { x: 0 }, colors: coloresTricolor });
+        confetti({ particleCount: 3, angle: 120, spread: 55, origin: { x: 1 }, colors: coloresTricolor });
+        requestAnimationFrame(frame);
+      }());
+    }
+    setTimeout(fuegosArtificiales, 600);
+  }
 })();
 </script>
 </body>

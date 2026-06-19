@@ -106,14 +106,29 @@ const Puntos = {
   },
 
   /* Bote y reparto por moneda (para la página de cuentas). */
-  bote(usuarios) {
+  bote(usuarios, salaConfig) {
     const porMoneda = {};
-    usuarios.filter(u => u.estado === 'activo').forEach(u => {
-      const m = porMoneda[u.moneda] = porMoneda[u.moneda] || { total: 0, pagado: 0, personas: 0, alDia: 0 };
-      const cuota = (CONFIG.CUOTAS[u.moneda] || { valor: 0 }).valor;
-      m.personas++; m.total += cuota;
-      if (u.pagado) { m.pagado += cuota; m.alDia++; }
-    });
+    if (salaConfig && salaConfig.cuota > 0) {
+      // Sala privada con cuota específica
+      const m = porMoneda[salaConfig.moneda] = { total: 0, pagado: 0, personas: 0, alDia: 0 };
+      const cuota = salaConfig.cuota;
+      usuarios.filter(u => u.estado === 'activo').forEach(u => {
+        m.personas++;
+        m.total += cuota;
+        if (u.pagado) {
+          m.pagado += cuota;
+          m.alDia++;
+        }
+      });
+    } else {
+      // Sala principal, usa cuotas globales por moneda de usuario
+      usuarios.filter(u => u.estado === 'activo').forEach(u => {
+        const m = porMoneda[u.moneda] = porMoneda[u.moneda] || { total: 0, pagado: 0, personas: 0, alDia: 0 };
+        const cuota = (CONFIG.CUOTAS[u.moneda] || { valor: 0 }).valor;
+        m.personas++; m.total += cuota;
+        if (u.pagado) { m.pagado += cuota; m.alDia++; }
+      });
+    }
     return porMoneda;
   }
 };

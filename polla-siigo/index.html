@@ -5,17 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Polla Mundialista Siigo 2026 — Entrar</title>
   <meta name="description" content="La polla futbolera oficial de Siigo para el Mundial 2026. Pronostica, compite y celebra con tus compañeros.">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0846f0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="stylesheet" href="css/estilos.css">
 </head>
 <body>
 
 <header class="barra">
   <div class="contenedor barra__fila">
-    <a class="logo" href="index.html">
-      <span class="logo__balon">⚽</span>
-      <span>Polla Siigo <small>Mundial 2026</small></span>
-    </a>
+    <a class="logo" href="index.html"><img src="icons/icon-192.png" alt="Logo Polla Siigo" class="logo__img"><span>Polla Siigo <small>Mundial 2026</small></span></a>
     <nav class="nav">
       <a href="reglas.html">Reglas</a>
     </nav>
@@ -27,6 +28,7 @@
   <section class="heroe">
     <div class="heroe__copa">🏆</div>
     <h1>La Polla Mundialista <span class="acento">Siigo 2026</span></h1>
+    <button id="install-pwa-button" class="boton" style="display: none;">📲 Instalar App en tu celular</button>
     <p class="bajada">48 selecciones, 104 partidos y una sola tabla que importa: la nuestra.</p>
     <div class="hero-banner" id="hero-banner"></div>
     <p class="hero-cta" id="hero-cta"></p>
@@ -49,7 +51,10 @@
         </div>
         <div class="campo">
           <label for="l-clave">Contraseña</label>
-          <input id="l-clave" type="password" required minlength="8" autocomplete="current-password">
+          <div class="campo-clave">
+            <input id="l-clave" type="password" required minlength="8" autocomplete="current-password">
+            <button type="button" class="toggle-clave" aria-label="Mostrar contraseña">👁️</button>
+          </div>
         </div>
         <button class="boton boton--bloque" type="submit">Entrar a la cancha ⚽</button>
         <button class="boton boton--google boton--bloque" type="button" id="btn-google">Entrar con Google</button>
@@ -78,13 +83,28 @@
           <p class="ayuda" id="r-cuota"></p>
         </div>
         <div class="campo">
-          <label for="r-clave">Contraseña (mínimo 8 caracteres)</label>
-          <input id="r-clave" type="password" required minlength="8" autocomplete="new-password">
+          <label for="r-clave">Contraseña (mín. 8 caracteres)</label>
+          <div class="campo-clave">
+            <input id="r-clave" type="password" required minlength="8" autocomplete="new-password">
+            <button type="button" class="toggle-clave" aria-label="Mostrar contraseña">👁️</button>
+          </div>
         </div>
         <button class="boton boton--verde boton--bloque" type="submit">Inscribirme en la polla 🎟</button>
         <p class="ayuda centro" style="margin-top:10px">Al registrarte aceptas las <a href="reglas.html">reglas del juego</a>.
           La plata de la cuota se entrega por fuera de la app al tesorero.</p>
       </form>
+
+      <div style="border-top: 1px solid var(--linea); margin-top: 22px; padding-top: 22px;">
+        <h2 style="margin:0 0 6px">🔑 Unirse con código</h2>
+        <p class="sub" style="margin:0 0 14px">¿Te invitaron a una sala privada? Ingresa el código que te compartieron.</p>
+        <form id="f-unirse-public" autocomplete="off">
+          <div class="campo">
+            <label for="invite-code-public">Código de invitación</label>
+            <input id="invite-code-public" type="text" required maxlength="8" placeholder="Ej: AB3X7K" style="text-transform:uppercase;font-family:monospace;letter-spacing:2px;font-size:16px">
+          </div>
+          <button class="boton boton--bloque" type="submit">Unirme a la sala</button>
+        </form>
+      </div>
     </div>
 
     <!-- ====== CÓMO FUNCIONA ====== -->
@@ -183,7 +203,6 @@ import { CONFIG } from './js/config.js';
       ctaEl.innerHTML = `¡El Mundial rueda a todo vapor! ⚽ Entra, revisa los resultados y sigue sumando puntos en la tabla.`;
     }
   }
-  pintarHeroBanner();
 
   /* --- Monedas en el registro -------------------------------- */
   const sel = document.getElementById('r-moneda');
@@ -206,6 +225,27 @@ import { CONFIG } from './js/config.js';
   tR.onclick = () => alterna(true);
 
   /* --- Login -------------------------------------------------- */
+  async function postLogin(usuario) {
+    const codigoPendiente = sessionStorage.getItem('codigoSalaPendiente');
+    if (codigoPendiente) {
+      sessionStorage.removeItem('codigoSalaPendiente');
+      try {
+        const sala = await Store.unirseASala(codigoPendiente, usuario.uid);
+        U.toast(`¡Bienvenido(a)! Te has unido a la sala "${sala.nombre}".`);
+        localStorage.setItem('salaActiva', sala.salaId);
+        location.href = `app.html?sala=${sala.salaId}`;
+        return;
+      } catch (err) {
+        U.toast(err.message, 'error');
+        location.href = 'lobby.html'; // Si falla, al lobby
+        return;
+      }
+    }
+    // Flujo normal
+    const sala = localStorage.getItem('salaActiva');
+    location.href = sala ? `app.html?sala=${sala}` : 'lobby.html';
+  }
+
   fL.onsubmit = async e => {
     e.preventDefault();
     const btn = fL.querySelector('button'); btn.disabled = true;
@@ -215,8 +255,7 @@ import { CONFIG } from './js/config.js';
         U.toast('Tu cuenta está pendiente de aprobación por Soporte IT.', 'info');
         await Store.logout();
       } else {
-        const sala = localStorage.getItem('salaActiva');
-        location.href = sala ? `app.html?sala=${sala}` : 'lobby.html';
+        await postLogin(u);
       }
     } catch (err) { U.toast(err.message, 'error'); }
     btn.disabled = false;
@@ -236,8 +275,7 @@ import { CONFIG } from './js/config.js';
           U.toast('Tu cuenta está pendiente de aprobación por Soporte IT.', 'info');
           await Store.logout();
         } else {
-          const sala = localStorage.getItem('salaActiva');
-          location.href = sala ? `app.html?sala=${sala}` : 'lobby.html';
+          await postLogin(u);
         }
       } catch (err) {
         U.toast(err.message || 'No fue posible iniciar sesión con Google.', 'error');
@@ -278,11 +316,62 @@ import { CONFIG } from './js/config.js';
         alterna(false);
       } else {
         U.toast(`¡Bienvenido(a) a la polla, ${u.nombre.split(' ')[0]}! ⚽`);
-        setTimeout(() => { location.href = 'lobby.html'; }, 600);
+        setTimeout(() => postLogin(u), 600);
       }
     } catch (err) { U.toast(err.message, 'error'); }
     btn.disabled = false;
   };
+
+  document.getElementById('f-unirse-public').onsubmit = e => {
+    e.preventDefault();
+    const codigo = document.getElementById('invite-code-public').value;
+    if (!codigo) return;
+    sessionStorage.setItem('codigoSalaPendiente', codigo.toUpperCase().trim());
+    U.toast('¡Perfecto! Ahora inicia sesión o crea una cuenta para unirte a la sala.', 'info');
+    alterna(false);
+    document.getElementById('l-correo').focus();
+  };
+
+  // Toggle para ver/ocultar contraseña
+  document.querySelectorAll('.toggle-clave').forEach(btn => {
+    btn.onclick = () => {
+      const input = btn.previousElementSibling;
+      const esPassword = input.type === 'password';
+      input.type = esPassword ? 'text' : 'password';
+      btn.textContent = esPassword ? '🙈' : '👁️';
+      btn.setAttribute('aria-label', esPassword ? 'Ocultar contraseña' : 'Mostrar contraseña');
+    };
+  });
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js')
+        .then(reg => console.log('Service Worker registrado'))
+        .catch(err => console.log('Error al registrar SW:', err));
+    });
+  }
+
+  // Lógica para el botón de instalación de la PWA
+  let deferredPrompt;
+  const installButton = document.getElementById('install-pwa-button');
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (installButton) installButton.style.display = 'block';
+
+    installButton.onclick = () => {
+      if (installButton) installButton.style.display = 'none';
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then((choiceResult) => {
+        console.log(`Resultado de la instalación: ${choiceResult.outcome}`);
+        deferredPrompt = null;
+      });
+    };
+  });
+
+  // Pintar el banner al final para asegurar que los scripts de fixture y utils se hayan cargado.
+  pintarHeroBanner();
 })();
 </script>
 </body>

@@ -56,10 +56,10 @@ const Email = {
 
   /* --- Recordatorio de jornada (lo dispara el admin) ----------
      usuarios: lista de usuarios activos
-     partidosTexto: bloque de texto con los partidos que cierran
+     partidosTexto: bloque de texto con los partidos que cierran. Si es null, se genera.
      Se envía secuencialmente con una pequeña pausa para respetar
      los límites del plan gratuito. Devuelve conteo. ------------ */
-  async recordatorio(usuarios, partidosTexto, alAvanzar) {
+  async recordatorio(usuarios, partidosTexto = null, alAvanzar) {
     let enviados = 0, simulados = 0;
     for (const u of usuarios) {
       const r = await this._enviar(CONFIG.EMAILJS.plantillas.recordatorio, {
@@ -94,11 +94,11 @@ const Email = {
 
   /* Texto listo para la plantilla de recordatorio: partidos que
      aún están abiertos en las próximas `horas`. */
-  textoProximosPartidos(ajustes, resultados, horas = 30) {
+  textoProximosPartidos(ajustes, resultados, horas = 30, salaId = 'siigo') {
     const limite = Date.now() + horas * 36e5;
     return FIXTURE.partidos
       .map(p => Puntos.conAjustes(p, ajustes))
-      .filter(p => U.abierto(p, resultados[p.id]) && new Date(p.utc) <= limite)
+      .filter(p => p.utc && U.abierto(p, resultados[p.id]) && new Date(p.utc) <= limite)
       .map(p => {
         const L = FIXTURE.equipo(p.local), V = FIXTURE.equipo(p.visitante);
         return `• ${L.n} vs ${V.n} — ${U.diaLocal(p.utc)} ${U.horaLocal(p.utc)}`;

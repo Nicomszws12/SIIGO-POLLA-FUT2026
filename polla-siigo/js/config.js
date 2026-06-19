@@ -91,7 +91,16 @@ export const CONFIG = {
   ],
 
   /* ----------------------------------------------------------
-     8. VARIOS
+     8. ANÁLISIS IA (vía Cloudflare Worker)
+     Sigue las instrucciones en /proxy/ia-worker.js para desplegar
+     el proxy que se conecta a un modelo como Claude de Anthropic.
+  ---------------------------------------------------------- */
+  IA: {
+    proxyUrl: '', // 👈 Pega aquí la URL de tu Worker (ej: https://ia-polla.TU-USUARIO.workers.dev)
+  },
+
+  /* ----------------------------------------------------------
+     9. VARIOS
   ---------------------------------------------------------- */
   MAX_GOLES: 15,                                // tope del marcador en un pronóstico
   VERSION: '1.0.0'

@@ -245,6 +245,58 @@ const ApiFutbol = {
     } catch { return null; }
   },
 
+  /* Genera y guarda un análisis de IA para un partido específico. */
+  async generarAnalisisIA(partidoId) {
+    if (!this.disponible() || !window.IA?.disponible()) {
+      throw new Error('La función de IA o la API de fútbol no están configuradas.');
+    }
+
+    const ajustes = await Store.ajustes();
+    const p = FIXTURE.partidos.find(x => x.id === partidoId);
+    if (!p) throw new Error('Partido no encontrado.');
+
+    const ap = Puntos.conAjustes(p, ajustes);
+    if (!ap.local || !ap.visitante) throw new Error('Los equipos para este partido aún no están definidos.');
+
+    const resAnterior = (await Store.resultados())[partidoId] || {};
+
+    const L = FIXTURE.equipo(ap.local);
+    const V = FIXTURE.equipo(ap.visitante);
+
+    // 1. Gather all data needed for the prompt
+    const datos = {
+        prediccion: resAnterior.prediccion || await this.traerPrediccion(ap.apiId),
+        h2h: resAnterior.prediccion?.h2h || await this.traerH2H(ap.localApiTeamId, ap.visitanteApiTeamId),
+        lesiones: resAnterior.prediccion?.lesiones || await this.traerLesiones(ap.apiId)
+    };
+
+    // 2. Build the prompt
+    let prompt = `Eres un analista experto de fútbol. Analiza el partido del Mundial 2026 entre ${L.n_en} y ${V.n_en}.\n\nDATOS DISPONIBLES:\n`;
+    if (datos.prediccion) {
+        prompt += `- Probabilidades (modelo API): ${L.n_en} (${datos.prediccion.pct.l}), Empate (${datos.prediccion.pct.e}), ${V.n_en} (${datos.prediccion.pct.v}).\n`;
+        prompt += `- Marcador más probable (modelo API): ${datos.prediccion.goles.l} a ${datos.prediccion.goles.v}.\n`;
+        if (datos.prediccion.consejo) prompt += `- Consejo de apuesta: ${datos.prediccion.consejo}.\n`;
+    }
+    if (datos.h2h) {
+        prompt += `- Historial (últimos ${datos.h2h.w1 + datos.h2h.empate + datos.h2h.w2}): ${L.n_en} ganó ${datos.h2h.w1}, empataron ${datos.h2h.empate}, y ${V.n_en} ganó ${datos.h2h.w2}.\n`;
+    }
+    if (datos.lesiones && (datos.lesiones[ap.local]?.length || datos.lesiones[ap.visitante]?.length)) {
+        prompt += `- Bajas por lesión: `;
+        if (datos.lesiones[ap.local]?.length) prompt += `${L.n_en}: ${datos.lesiones[ap.local].map(j => j.nombre).join(', ')}. `;
+        if (datos.lesiones[ap.visitante]?.length) prompt += `${V.n_en}: ${datos.lesiones[ap.visitante].map(j => j.nombre).join(', ')}.`;
+        prompt += `\n`;
+    }
+    prompt += `\nINSTRUCCIONES:\nBasado en estos datos, genera un análisis conciso en 2-3 párrafos en español, con un título atractivo usando markdown. Enfócate en las claves del partido, el favorito y por qué. Sé directo, profesional y analítico. No repitas los datos crudos, interprétalos.`;
+
+    // 3. Call IA and store result
+    const analisisMd = await IA.analizar(prompt);
+    if (!analisisMd) throw new Error('La IA no generó una respuesta.');
+
+    await Store.guardarResultado(partidoId, { ...resAnterior, analisisIA: analisisMd });
+    
+    return analisisMd;
+  },
+
   /* Empareja cada partido del proveedor con el fixture local. */
   _emparejar(apiPartido, ajustes) {
     return FIXTURE.partidos.find(p => {
@@ -335,6 +387,42 @@ const ApiFutbol = {
         if (mins > 0) {
           const resAnterior = resActuales[p.id] || {};
           const extra = {};
+
+          // Análisis IA (48h antes)
+          if (mins < 2880 && !resAnterior.analisisIA && window.IA && IA.disponible()) {
+            const L = FIXTURE.equipo(ap.local);
+            const V = FIXTURE.equipo(ap.visitante);
+            
+            // 1. Gather all data needed for the prompt
+            const datos = {
+                prediccion: resAnterior.prediccion || await this.traerPrediccion(ap.apiId),
+                h2h: resAnterior.prediccion?.h2h || await this.traerH2H(ap.localApiTeamId, ap.visitanteApiTeamId),
+                lesiones: resAnterior.prediccion?.lesiones || await this.traerLesiones(ap.apiId)
+            };
+
+            // 2. Build the prompt
+            let prompt = `Eres un analista experto de fútbol. Analiza el partido del Mundial 2026 entre ${L.n_en} y ${V.n_en}.\n\nDATOS DISPONIBLES:\n`;
+            if (datos.prediccion) {
+                prompt += `- Probabilidades (modelo API): ${L.n_en} (${datos.prediccion.pct.l}), Empate (${datos.prediccion.pct.e}), ${V.n_en} (${datos.prediccion.pct.v}).\n`;
+                prompt += `- Marcador más probable (modelo API): ${datos.prediccion.goles.l} a ${datos.prediccion.goles.v}.\n`;
+                if (datos.prediccion.consejo) prompt += `- Consejo de apuesta: ${datos.prediccion.consejo}.\n`;
+            }
+            if (datos.h2h) {
+                prompt += `- Historial (últimos ${datos.h2h.w1 + datos.h2h.empate + datos.h2h.w2}): ${L.n_en} ganó ${datos.h2h.w1}, empataron ${datos.h2h.empate}, y ${V.n_en} ganó ${datos.h2h.w2}.\n`;
+            }
+            if (datos.lesiones && (datos.lesiones[ap.local]?.length || datos.lesiones[ap.visitante]?.length)) {
+                prompt += `- Bajas por lesión: `;
+                if (datos.lesiones[ap.local]?.length) prompt += `${L.n_en}: ${datos.lesiones[ap.local].map(j => j.nombre).join(', ')}. `;
+                if (datos.lesiones[ap.visitante]?.length) prompt += `${V.n_en}: ${datos.lesiones[ap.visitante].map(j => j.nombre).join(', ')}.`;
+                prompt += `\n`;
+            }
+            prompt += `\nINSTRUCCIONES:\nBasado en estos datos, genera un análisis conciso en 2-3 párrafos en español, con un título atractivo usando markdown. Enfócate en las claves del partido, el favorito y por qué. Sé directo, profesional y analítico. No repitas los datos crudos, interprétalos.`;
+
+            // 3. Call IA and store result
+            try { const analisisMd = await IA.analizar(prompt); if (analisisMd) extra.analisisIA = analisisMd; }
+            catch (e) { console.warn(`Fallo al generar análisis IA para ${p.id}:`, e); }
+          }
+
           if (mins < 1440 && !resAnterior.prediccion) {
             const pred = await this.traerPrediccion(ap.apiId);
             if (pred) extra.prediccion = pred;

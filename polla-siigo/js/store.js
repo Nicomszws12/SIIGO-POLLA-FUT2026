@@ -525,7 +525,14 @@ const Store = (() => {
       const codigo = Math.random().toString(36).slice(2, 8).toUpperCase();
       const ref = fdb.collection('salas').doc();
       const salaId = ref.id;
-      const sala = { salaId, nombre: nombre.trim(), codigo, adminUid, creado: Date.now() };
+      const sala = {
+        salaId,
+        nombre: nombre.trim(),
+        codigo,
+        adminUid,
+        creado: Date.now(),
+        config: { cuota: 20000, moneda: 'COP', tesorero: '' }
+      };
       const lote = fdb.batch();
       lote.set(ref, sala);
       lote.set(fdb.collection('salaMiembros').doc(`${salaId}__${adminUid}`),
@@ -545,6 +552,11 @@ const Store = (() => {
       return sala;
     },
 
+    async guardarConfigSala(salaId, config) {
+      if (salaId === 'siigo') throw new Error('La sala principal no se puede configurar.');
+      await fdb.collection('salas').doc(salaId).update({ config });
+    },
+
     async misSalas(uid) {
       const snap = await fdb.collection('salaMiembros').where('uid', '==', uid).get();
       if (snap.empty) return [];
@@ -560,7 +572,7 @@ const Store = (() => {
       return doc.exists ? doc.data() : null;
     },
 
-    async miembrosDeSSala(salaId) {
+    async miembrosDeSala(salaId) {
       const snap = await fdb.collection('salaMiembros').where('salaId', '==', salaId).get();
       return snap.docs.map(d => d.data());
     },
@@ -571,7 +583,7 @@ const Store = (() => {
 
     async usuariosSala(salaId) {
       if (salaId === 'siigo') return this.usuarios();
-      const miembros = await this.miembrosDeSSala(salaId);
+      const miembros = await this.miembrosDeSala(salaId);
       const uids = miembros.map(m => m.uid).slice(0, 10);
       if (!uids.length) return [];
       const s = await fdb.collection('usuarios')

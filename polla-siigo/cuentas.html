@@ -5,13 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>La Vaca (Cuentas) — Polla Siigo 2026</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0846f0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="stylesheet" href="css/estilos.css">
 </head>
 <body>
 
 <header class="barra">
   <div class="contenedor barra__fila">
-    <a class="logo" href="app.html"><span class="logo__balon">⚽</span><span>Polla Siigo <small>Mundial 2026</small></span></a>
+    <a class="logo" href="app.html"><img src="icons/icon-192.png" alt="Logo" class="logo__img"><span id="logo-texto">Polla Siigo <small>Mundial 2026</small></span></a>
     <nav class="nav" id="nav">
       <a href="app.html">Partidos</a>
       <a href="tabla.html">Tabla</a>
@@ -76,31 +80,42 @@ import { CONFIG } from './js/config.js';
     const a = document.createElement('a'); a.href = 'admin.html'; a.textContent = '🛠 Admin';
     document.getElementById('nav').appendChild(a);
   }
-  document.getElementById('tesorero').textContent = CONFIG.TESORERO;
-
   const salaId = new URLSearchParams(location.search).get('sala') || localStorage.getItem('salaActiva') || 'siigo';
+  const sala = await Store.salaPorId(salaId);
+  const tesorero = sala?.config?.tesorero || CONFIG.TESORERO;
+  document.getElementById('tesorero').textContent = tesorero;
+
   if (salaId !== 'siigo') {
-    ['app.html', 'tabla.html'].forEach(page => {
+    if (sala) {
+      const logoTexto = document.getElementById('logo-texto');
+      if (logoTexto) logoTexto.innerHTML = `${U.esc(sala.nombre)} <small>Mundial 2026</small>`;
+    }
+    ['app.html', 'tabla.html', 'admin.html'].forEach(page => {
       const a = document.querySelector(`a[href="${page}"]`);
       if (a) a.href = `${page}?sala=${salaId}`;
     });
   }
 
   async function cargar() {
-    const [usuarios, todas, resultados, ajustes] = await Promise.all([
-      Store.usuariosSala(salaId), Store.todasPrediccionesSala(salaId), Store.resultados(), Store.ajustes()
-    ]);
+    const [usuarios, todas, resultados, ajustes] = await Promise.all([Store.usuariosSala(salaId), Store.todasPrediccionesSala(salaId), Store.resultados(), Store.ajustes()]);
     const activos = usuarios.filter(u => u.estado === 'activo');
-    const botes = Puntos.bote(activos);
+    const botes = Puntos.bote(activos, sala?.config);
     const tabla = Puntos.tabla(usuarios, todas, resultados, ajustes);
 
     /* --- mi estado ------------------------------------------- */
-    const miCuota = (CONFIG.CUOTAS[yo.moneda] || { valor: 0 }).valor;
+    let miCuota, miMoneda;
+    if (sala?.config?.cuota > 0) {
+      miCuota = sala.config.cuota;
+      miMoneda = sala.config.moneda;
+    } else {
+      miCuota = (CONFIG.CUOTAS[yo.moneda] || { valor: 0 }).valor;
+      miMoneda = yo.moneda;
+    }
     const yoActual = usuarios.find(u => u.uid === yo.uid) || yo;
     document.getElementById('mi-estado').className = 'aviso ' + (yoActual.pagado ? 'aviso--verde' : 'aviso--dorado');
     document.getElementById('mi-estado').innerHTML = yoActual.pagado
-      ? `✅ Tu cuota de <b>${U.moneda(miCuota, yo.moneda)}</b> ya figura como pagada. ¡A jugar tranquilo!`
-      : `⏳ Tienes pendiente tu cuota de <b>${U.moneda(miCuota, yo.moneda)}</b>. Entrégala al tesorero y él la marcará como pagada.`;
+      ? `✅ Tu cuota de <b>${U.moneda(miCuota, miMoneda)}</b> ya figura como pagada. ¡A jugar tranquilo!`
+      : `⏳ Tienes pendiente tu cuota de <b>${U.moneda(miCuota, miMoneda)}</b>. Entrégala al tesorero (${tesorero}) y él la marcará como pagada.`;
 
     /* --- botes por moneda ------------------------------------- */
     document.getElementById('botes').innerHTML = Object.entries(botes).map(([cod, b]) => `
@@ -121,17 +136,24 @@ import { CONFIG } from './js/config.js';
       .slice()
       .sort((a, b) => (a.pagado === b.pagado) ? a.nombre.localeCompare(b.nombre, 'es') : (a.pagado ? 1 : -1))
       .map(u => {
-        const cuota = (CONFIG.CUOTAS[u.moneda] || { valor: 0 }).valor;
+        let cuota, monedaUsuario;
+        if (sala?.config?.cuota > 0) {
+          cuota = sala.config.cuota;
+          monedaUsuario = sala.config.moneda;
+        } else {
+          cuota = (CONFIG.CUOTAS[u.moneda] || { valor: 0 }).valor;
+          monedaUsuario = u.moneda;
+        }
         return `<tr class="${u.uid === yo.uid ? 'yo' : ''}">
           <td><b>${U.esc(u.nombre)}</b>${u.vinculo === 'externo' ? ' <span class="etiqueta">Invitado</span>' : ''}</td>
           <td>${U.esc(u.area || '')}</td>
-          <td class="num">${U.moneda(cuota, u.moneda)}</td>
+          <td class="num">${U.moneda(cuota, monedaUsuario)}</td>
           <td>${u.pagado
             ? '<span class="etiqueta etiqueta--fin">PAGADO ✓</span>'
             : '<span class="etiqueta etiqueta--dorada">PENDIENTE</span>'}</td>
           <td class="sub">${u.pagado
             ? 'Nada pendiente'
-            : `${U.esc(u.nombre.split(' ')[0])} → le debe ${U.moneda(cuota, u.moneda)} al tesorero`}</td>
+            : `${U.esc(u.nombre.split(' ')[0])} → le debe ${U.moneda(cuota, monedaUsuario)} al tesorero (${tesorero})`}</td>
         </tr>`;
       }).join('');
     document.getElementById('cuerpo-pagos').innerHTML =

@@ -4,14 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Panel de administración — Polla Siigo 2026</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛠</text></svg>">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0846f0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="stylesheet" href="css/estilos.css">
 </head>
 <body>
 
 <header class="barra">
   <div class="contenedor barra__fila">
-    <a class="logo" href="app.html"><span class="logo__balon">⚽</span><span>Polla Siigo <small>Mundial 2026</small></span></a>
+    <a class="logo" href="app.html"><img src="icons/icon-192.png" alt="Logo Polla Siigo" class="logo__img"><span id="logo-texto">Polla Siigo <small>Mundial 2026</small></span></a>
     <nav class="nav">
       <a href="app.html">Partidos</a>
       <a href="tabla.html">Tabla</a>
@@ -29,7 +33,7 @@
 
   <section class="fila-flex" style="margin-top:24px">
     <div>
-      <h1 style="margin:0;font-size:26px">🛠 Panel de Soporte IT</h1>
+      <h1 style="margin:0;font-size:26px" id="admin-titulo">🛠 Panel de Soporte IT</h1>
       <p class="sub" id="modo-aviso"></p>
     </div>
     <div class="empuja fila-flex">
@@ -38,12 +42,15 @@
     </div>
   </section>
 
+  <div id="sala-config-panel"></div>
+
   <div class="tabs" style="margin-top:16px">
     <button class="activo" data-tab="resultados" type="button">⚽ Resultados</button>
     <button data-tab="gente" type="button">👥 Participantes</button>
     <button data-tab="calendario" type="button">📅 Calendario y llaves</button>
     <button data-tab="correos" type="button">✉️ Comunicaciones</button>
     <button data-tab="pronosticos" type="button">🔮 Pronósticos</button>
+    <button data-tab="ia" type="button">🤖 Análisis IA</button>
   </div>
 
   <!-- ====== RESULTADOS ====== -->
@@ -115,6 +122,91 @@
     <div id="lista-pron"></div>
   </section>
 
+  <!-- ====== MODAL PRONÓSTICOS POR PARTIDO ====== -->
+  <div id="modal-pron" class="modal-overlay">
+    <div class="modal-contenido" style="max-width:580px;width:100%">
+      <div class="modal-header">
+        <div id="modal-pron-titulo" style="flex:1"></div>
+        <button class="modal-cerrar" id="modal-pron-cerrar" type="button">✕</button>
+      </div>
+      <div id="modal-pron-cuerpo"></div>
+    </div>
+  </div>
+
+  <!-- ====== ANÁLISIS IA ====== -->
+  <section id="tab-ia" class="oculto">
+    <div id="ia-no-config" class="aviso aviso--dorado" style="display:none">
+      ⚙️ <b>Falta configurar el proxy IA.</b> Despliega el Worker siguiendo
+      las instrucciones en <code>proxy/ia-worker.js</code> y pega la URL en
+      <code>CONFIG.IA.proxyUrl</code> dentro de <code>js/config.js</code>.
+    </div>
+
+    <div id="ia-panel">
+      <div class="panel panel--relleno" style="margin-bottom: 18px; background: linear-gradient(135deg, rgba(245,184,0,.15), rgba(245,184,0,.05)); border-color: rgba(245,184,0,.4);">
+        <h2 style="color: var(--dorado);">🚀 Próximamente: Funciones Pro</h2>
+        <p class="sub">Estamos trabajando en nuevas herramientas de análisis para darte una ventaja competitiva. ¡Prepárate para lo que viene!</p>
+        <div class="rejilla rejilla--3" style="gap: 20px; margin-top: 16px;">
+          <div>
+            <h4 style="margin:0 0 4px;">📡 Radar de Valor Exclusivo</h4>
+            <p style="font-size:13px; color: var(--tinta-2); margin:0;">Accede a las tendencias y oportunidades de alta probabilidad con cuotas superiores a 1.40.</p>
+          </div>
+          <div>
+            <h4 style="margin:0 0 4px;">🔔 Alertas de "Gol Inminente"</h4>
+            <p style="font-size:13px; color: var(--tinta-2); margin:0;">Nuestro robot escanea partidos en vivo y te envía correos cuando un equipo está dominando brutalmente.</p>
+          </div>
+          <div>
+            <h4 style="margin:0 0 4px;">✨ Sin Riesgo de Publicidad</h4>
+            <p style="font-size:13px; color: var(--tinta-2); margin:0;">Navegación limpia, rápida y enfocada 100% en análisis de datos puros y reales.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="rejilla rejilla--2" style="align-items:start;margin-top:8px">
+
+        <!-- Análisis de equipo -->
+        <div class="panel panel--relleno">
+          <h2>🌍 Análisis de equipo</h2>
+          <p class="sub">Selecciona un equipo para generar un informe táctico completo con probabilidades por ronda.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <select id="ia-sel-equipo" class="mini-input" style="flex:1;min-width:180px">
+              <option value="">— Elige un equipo —</option>
+            </select>
+            <button class="boton boton--verde" id="ia-btn-equipo" type="button">Analizar 🤖</button>
+          </div>
+        </div>
+
+        <!-- Predicción de partido -->
+        <div class="panel panel--relleno">
+          <h2>⚽ Predicción de partido</h2>
+          <p class="sub">Elige dos equipos para obtener un análisis comparativo y el pronóstico del partido.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <select id="ia-sel-local" class="mini-input" style="flex:1;min-width:140px">
+              <option value="">— Local —</option>
+            </select>
+            <span style="color:var(--tinta-3)">vs</span>
+            <select id="ia-sel-visitante" class="mini-input" style="flex:1;min-width:140px">
+              <option value="">— Visitante —</option>
+            </select>
+            <button class="boton" id="ia-btn-partido" type="button">Predecir 🤖</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resultado IA -->
+      <div id="ia-resultado" style="display:none;margin-top:18px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h3 id="ia-resultado-titulo" style="margin:0;color:var(--dorado)"></h3>
+          <button class="boton boton--fantasma boton--mini" id="ia-btn-copiar" type="button">📋 Copiar</button>
+        </div>
+        <div id="ia-resultado-cuerpo" style="background:var(--superficie-2);border:1px solid var(--linea);border-radius:10px;padding:20px 24px;line-height:1.75;font-size:14px"></div>
+      </div>
+
+      <div id="ia-cargando" style="display:none" class="aviso">
+        <span id="ia-dots">⏳ Generando análisis</span>
+      </div>
+    </div>
+  </section>
+
   <!-- ====== ZONA DE CONTROL ====== -->
   <div class="panel panel--relleno" style="margin-top:26px">
     <h2>🏁 Zona de Control</h2>
@@ -124,6 +216,15 @@
       <button class="boton boton--verde" id="b-toggle-campeon" type="button">🏆 Abrir "Mi Campeón"</button>
       <button class="boton boton--fantasma" id="b-ejemplo" type="button">🧪 Cargar datos de ejemplo (demo)</button>
       <button class="boton boton--rojo boton--mini empuja" id="b-borrar-demo" type="button">🗑 Vaciar datos demo</button>
+    </div>
+  </div>
+
+  <div class="panel panel--relleno" style="margin-top:26px">
+    <h2>🎨 Tema Especial (Prueba)</h2>
+    <p class="sub">Activa o desactiva el tema de Colombia para ver cómo se ve.</p>
+    <div class="fila-flex">
+      <button class="boton boton--verde" id="b-tema-on" type="button">Activar Tema Colombia</button>
+      <button class="boton boton--rojo" id="b-tema-off" type="button">Quitar Tema</button>
     </div>
   </div>
 
@@ -139,6 +240,7 @@
 <script type="module" src="js/puntos.js"></script>
 <script type="module" src="js/api-futbol.js"></script>
 <script type="module" src="js/email.js"></script>
+<script type="module" src="js/ia.js"></script>
 <script type="module">
 import { CONFIG } from './js/config.js';
 (async () => {
@@ -149,6 +251,69 @@ import { CONFIG } from './js/config.js';
 
   document.getElementById('avatar').textContent = U.iniciales(yo.nombre);
   document.getElementById('salir').onclick = async () => { await Store.logout(); location.href = 'index.html'; };
+  
+  const salaId = U.params().get('sala') || 'siigo';
+  if (salaId !== 'siigo') {
+    const sala = await Store.salaPorId(salaId);
+    if (sala) {
+      document.getElementById('logo-texto').innerHTML = `${U.esc(sala.nombre)} <small>Admin</small>`;
+      document.getElementById('admin-titulo').textContent = `🛠 Admin: ${sala.nombre}`;
+
+      const configPanel = document.getElementById('sala-config-panel');
+      configPanel.innerHTML = `
+        <div class="panel panel--relleno" style="margin-top: 16px;">
+          <h2 style="margin-top:0">⚙️ Configuración de Sala</h2>
+          <p class="sub">Define un valor, moneda y tesorero únicos para esta sala.</p>
+          <form id="f-config-sala" class="rejilla rejilla--2" style="align-items: end;">
+            <div class="campo">
+              <label for="cuota-valor">Valor de la cuota</label>
+              <input id="cuota-valor" type="number" min="0" required placeholder="Ej: 20000">
+            </div>
+            <div class="campo">
+              <label for="cuota-moneda">Moneda</label>
+              <select id="cuota-moneda" required></select>
+            </div>
+            <div class="campo" style="grid-column: 1 / -1;">
+              <label for="tesorero-sala">Tesorero de la sala</label>
+              <input id="tesorero-sala" type="text" placeholder="Nombre del encargado de la plata">
+              <p class="ayuda">Si lo dejas en blanco, se usará el tesorero global (${CONFIG.TESORERO}).</p>
+            </div>
+            <div style="grid-column: 1 / -1; margin-top: 10px;">
+              <button type="submit" class="boton boton--verde">Guardar Configuración</button>
+            </div>
+          </form>
+        </div>
+      `;
+
+      const selMoneda = document.getElementById('cuota-moneda');
+      selMoneda.innerHTML = Object.entries(CONFIG.CUOTAS)
+        .map(([cod, m]) => `<option value="${cod}">${m.nombre} (${cod})</option>`).join('');
+
+      const config = sala.config || { cuota: 0, moneda: 'COP', tesorero: '' };
+      document.getElementById('cuota-valor').value = config.cuota;
+      selMoneda.value = config.moneda;
+      document.getElementById('tesorero-sala').value = config.tesorero || '';
+
+      document.getElementById('f-config-sala').onsubmit = async e => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button');
+        btn.disabled = true;
+        const nuevaConfig = {
+          cuota: parseInt(document.getElementById('cuota-valor').value, 10),
+          moneda: selMoneda.value,
+          tesorero: document.getElementById('tesorero-sala').value.trim()
+        };
+        try { await Store.guardarConfigSala(salaId, nuevaConfig); U.toast('Configuración de la sala guardada.', 'ok'); }
+        catch (err) { U.toast(err.message, 'error'); }
+        btn.disabled = false;
+      };
+    }
+    // Ocultar controles globales en salas privadas
+    document.getElementById('b-publicar').style.display = 'none';
+    document.getElementById('b-ejemplo').style.display = 'none';
+    document.getElementById('b-borrar-demo').style.display = 'none';
+  }
+
   document.getElementById('modo-aviso').innerHTML = Store.esDemo
     ? 'Modo <b>DEMO</b>: los datos viven solo en este navegador. Cambia a Firebase en <code>js/config.js</code> para producción.'
     : 'Modo <b>Firebase</b>: cambios visibles para todos en tiempo real.';
@@ -162,7 +327,7 @@ import { CONFIG } from './js/config.js';
   }
 
   /* ============ TABS ============ */
-  const TABS = ['resultados', 'gente', 'calendario', 'correos', 'pronosticos'];
+  const TABS = ['resultados', 'gente', 'calendario', 'correos', 'pronosticos', 'ia'];
   document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
     document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('activo', x === b));
     TABS.forEach(t => document.getElementById('tab-' + t).classList.toggle('oculto', b.dataset.tab !== t));
@@ -276,7 +441,7 @@ import { CONFIG } from './js/config.js';
 
   /* ============ PARTICIPANTES ============ */
   async function pintarGente() {
-    const usuarios = (await Store.usuarios()).sort((a, b) =>
+    const usuarios = (await Store.usuariosSala(salaId)).sort((a, b) =>
       (a.estado === b.estado ? a.nombre.localeCompare(b.nombre, 'es') : a.estado === 'pendiente' ? -1 : 1));
     const pendientes = usuarios.filter(u => u.estado === 'pendiente');
     document.getElementById('pendientes-caja').innerHTML = pendientes.length
@@ -300,9 +465,9 @@ import { CONFIG } from './js/config.js';
           </select>
         </td>
         <td class="centro"><span title="${u.campeon ? FIXTURE.equipo(u.campeon).n : 'Sin elegir'}">${u.campeon ? FIXTURE.equipo(u.campeon).b + ' ' + u.campeon : '—'}</span> <button class="boton boton--fantasma boton--mini" data-editar-campeon type="button" style="padding:0 5px; border:none; background:transparent" title="Editar campeón">✏️</button></td>
-        <td><button class="boton boton--rojo boton--mini" data-borrar title="Eliminar participante" type="button">✕</button></td>
+        <td><button class="boton boton--rojo boton--mini" data-borrar title="${salaId === 'siigo' ? 'Eliminar participante' : 'Expulsar de la sala'}" type="button">✕</button></td>
       </tr>`;
-    }).join('') || '<tr><td colspan="7" class="centro sub">Nadie registrado aún.</td></tr>';
+    }).join('') || '<tr><td colspan="8" class="centro sub">Nadie registrado aún.</td></tr>';
   }
 
   document.getElementById('cuerpo-gente').addEventListener('click', async e => {
@@ -503,6 +668,7 @@ import { CONFIG } from './js/config.js';
 
   /* ============ PRONÓSTICOS ============ */
   let subPron = 'todos';
+  let todasPreds = {}, mapNombrePron = {};
 
   document.getElementById('chips-pron').addEventListener('click', e => {
     const b = e.target.closest('.chip'); if (!b) return;
@@ -510,9 +676,87 @@ import { CONFIG } from './js/config.js';
     document.querySelectorAll('#chips-pron .chip').forEach(c => c.classList.toggle('activo', c === b));
     pintarPron();
   });
-  // Activar chip inicial "todos"
-  document.querySelectorAll('#chips-pron .chip').forEach(c =>
-    c.classList.toggle('activo', c.dataset.sub === 'todos'));
+
+  /* --- Modal pronósticos por partido --- */
+  const modalPron = document.getElementById('modal-pron');
+  document.getElementById('modal-pron-cerrar').onclick = () => modalPron.classList.remove('activo');
+  modalPron.addEventListener('click', e => { if (e.target === modalPron) modalPron.classList.remove('activo'); });
+
+  function abrirModalPartido(pid) {
+    const p = FIXTURE.partidos.map(x => Puntos.conAjustes(x, ajustes)).find(x => x.id === pid);
+    if (!p) return;
+    const res = resultados[pid] || {};
+    const L = FIXTURE.equipo(p.local), V = FIXTURE.equipo(p.visitante);
+    const estado = U.estadoPartido(p, res);
+
+    const badgeRes = res.estado === 'finalizado'
+      ? `<span class="etiqueta etiqueta--fin" style="font-size:16px;padding:4px 10px">✅ ${res.gl} – ${res.gv}</span>`
+      : res.estado === 'en_juego'
+      ? `<span class="etiqueta" style="background:var(--rojo);color:#fff;font-size:13px">🔴 En juego ${res.minuto ? res.minuto + "'" : ''}</span>`
+      : estado === 'cerrado'
+      ? `<span class="etiqueta">🔒 Cerrado</span>`
+      : `<span class="etiqueta" style="color:var(--tinta-3)">📅 ${p.utc ? U.horaLocal(p.utc) : 'sin hora'}</span>`;
+
+    document.getElementById('modal-pron-titulo').innerHTML = `
+      <div>
+        <div style="font-size:17px;font-weight:700;margin-bottom:4px">
+          ${L.b} ${U.esc(L.n)} <span style="color:var(--tinta-3);font-weight:400">vs</span> ${U.esc(V.n)} ${V.b}
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--tinta-3)">
+          <span>${p.utc ? U.diaLocal(p.utc) + ' · ' + U.horaLocal(p.utc) : 'sin hora'}</span>
+          ${badgeRes}
+        </div>
+      </div>`;
+
+    const preds = Object.entries(todasPreds)
+      .map(([uid, pMap]) => ({ uid, nombre: mapNombrePron[uid] || uid, pred: pMap[pid] }))
+      .filter(x => x.pred)
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+
+    if (!preds.length) {
+      document.getElementById('modal-pron-cuerpo').innerHTML =
+        '<div class="aviso" style="margin:16px">Sin pronósticos para este partido.</div>';
+    } else {
+      const filas = preds.map(({ nombre, pred }) => {
+        const cal = res.estado === 'finalizado' ? Puntos.calificar(pred, res, p.fase) : null;
+        const color = cal
+          ? (cal.tipo === 'exacto' ? 'var(--verde-claro)' : cal.tipo === 'resultado' ? 'var(--dorado)' : 'var(--rojo)')
+          : 'var(--tinta)';
+        const icono = cal ? (cal.tipo === 'exacto' ? '🎯' : cal.tipo === 'resultado' ? '✔' : '❌') : '';
+        const pts = cal && cal.pts > 0 ? `<span style="font-size:11px;color:var(--tinta-3)">+${cal.pts} pts</span>` : '';
+        return `<div class="pron-item">
+          <span class="nombre">${U.esc(nombre)}</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            ${pts}
+            <span style="font-size:20px">${icono}</span>
+            <span class="goles" style="color:${color}">${pred.gl} – ${pred.gv}</span>
+          </div>
+        </div>`;
+      }).join('');
+
+      const resumen = res.estado === 'finalizado'
+        ? (() => {
+            let exactos = 0, resultados_ = 0, fallidos = 0;
+            preds.forEach(({ pred }) => {
+              const c = Puntos.calificar(pred, res, p.fase);
+              if (c.tipo === 'exacto') exactos++;
+              else if (c.tipo === 'resultado') resultados_++;
+              else fallidos++;
+            });
+            return `<div style="display:flex;gap:12px;padding:10px 16px;background:rgba(0,0,0,.2);font-size:13px;border-top:1px solid var(--linea)">
+              <span>🎯 ${exactos} exactos</span>
+              <span>✔ ${resultados_} resultado</span>
+              <span>❌ ${fallidos} fallidos</span>
+              <span style="margin-left:auto;color:var(--tinta-3)">${preds.length} jugadores</span>
+            </div>`;
+          })()
+        : `<div style="padding:8px 16px;font-size:12px;color:var(--tinta-3);border-top:1px solid var(--linea)">${preds.length} pronósticos registrados</div>`;
+
+      document.getElementById('modal-pron-cuerpo').innerHTML = filas + resumen;
+    }
+
+    modalPron.classList.add('activo');
+  }
 
   async function pintarPron() {
     const desc = document.getElementById('desc-pron');
@@ -521,76 +765,63 @@ import { CONFIG } from './js/config.js';
 
     try {
       if (subPron === 'todos') {
-        desc.textContent = 'Pronósticos de todos los participantes por partido (orden cronológico).';
+        desc.textContent = 'Haz clic en un partido para ver los pronósticos de todos los participantes.';
         const [todas, usuarios] = await Promise.all([Store.todasPredicciones(), Store.usuarios()]);
-        const mapNombre = {};
-        usuarios.forEach(u => { mapNombre[u.uid] = u.nombre; });
+        todasPreds = todas;
+        mapNombrePron = {};
+        usuarios.forEach(u => { mapNombrePron[u.uid] = u.nombre; });
 
         const partidos = FIXTURE.partidos
           .map(p => Puntos.conAjustes(p, ajustes))
           .filter(p => p.local && p.visitante)
           .sort((a, b) => (a.utc || '9').localeCompare(b.utc || '9'));
 
-        const bloques = partidos.map(p => {
+        const tarjetas = partidos.map(p => {
           const res = resultados[p.id] || {};
           const L = FIXTURE.equipo(p.local), V = FIXTURE.equipo(p.visitante);
           const estado = U.estadoPartido(p, res);
-          const preds = Object.entries(todas)
-            .map(([uid, pMap]) => ({ uid, pred: pMap[p.id] }))
-            .filter(x => x.pred)
-            .sort((a, b) => (mapNombre[a.uid] || '').localeCompare(mapNombre[b.uid] || '', 'es'));
-          if (!preds.length) return '';
+          const totalPreds = Object.values(todas).filter(pMap => pMap[p.id]).length;
 
           const badgeEstado = res.estado === 'finalizado'
             ? `<span class="etiqueta etiqueta--fin">✅ ${res.gl}–${res.gv}</span>`
             : res.estado === 'en_juego'
-            ? `<span class="etiqueta" style="background:var(--rojo);color:#fff">🔴 En juego ${res.minuto ? res.minuto + "'" : ''}</span>`
+            ? `<span class="etiqueta" style="background:var(--rojo);color:#fff">🔴 Vivo</span>`
             : estado === 'cerrado'
-            ? `<span class="etiqueta">🔒 Cerrado</span>`
-            : `<span class="etiqueta" style="color:var(--tinta-3)">📅 ${p.utc ? U.horaLocal(p.utc) : 'sin hora'}</span>`;
-
-          const filas = preds.map(({ uid, pred }) => {
-            const cal = res.estado === 'finalizado' ? Puntos.calificar(pred, res, p.fase) : null;
-            const color = cal
-              ? (cal.tipo === 'exacto' ? 'var(--verde-claro)' : cal.tipo === 'resultado' ? 'var(--dorado)' : 'var(--rojo)')
-              : 'var(--tinta)';
-            const icono = cal
-              ? (cal.tipo === 'exacto' ? '🎯' : cal.tipo === 'resultado' ? '✔' : '❌')
-              : (estado === 'programado' ? '⏳' : '🔒');
-            const pts = cal && cal.pts > 0 ? `<span style="font-size:11px;color:${color}">+${cal.pts}pts</span>` : '';
-            return `<tr>
-              <td>${U.esc(mapNombre[uid] || uid)}</td>
-              <td class="num" style="font-family:var(--fuente-marcador);font-weight:900;color:${color};font-size:16px">${pred.gl} – ${pred.gv}</td>
-              <td class="centro">${icono} ${pts}</td>
-            </tr>`;
-          }).join('');
+            ? `<span class="etiqueta">🔒</span>`
+            : `<span class="etiqueta" style="color:var(--tinta-3);background:transparent;border-color:rgba(255,255,255,.1)">${p.utc ? U.horaLocal(p.utc) : '?'}</span>`;
 
           return `
-            <div style="margin-bottom:18px;border:1px solid var(--linea);border-radius:10px;overflow:hidden">
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:rgba(255,255,255,.04);border-bottom:1px solid var(--linea)">
-                <b style="font-size:14px">${L.b} ${U.esc(L.n)} <span style="color:var(--tinta-3);font-weight:400">vs</span> ${U.esc(V.n)} ${V.b}</b>
-                <div style="display:flex;align-items:center;gap:8px">
-                  <span class="sub">${p.utc ? U.diaLocal(p.utc) : ''}</span>
-                  ${badgeEstado}
-                  <span class="sub">${preds.length} pronósticos</span>
+            <div data-abrir-pid="${p.id}" style="cursor:pointer;border:1px solid var(--linea);border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px;background:var(--superficie);transition:background .15s" onmouseover="this.style.background='var(--superficie-2)'" onmouseout="this.style.background='var(--superficie)'">
+              <div style="flex:1;min-width:0">
+                <div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                  ${L.b} ${U.esc(L.n)} <span style="color:var(--tinta-3);font-weight:400">vs</span> ${U.esc(V.n)} ${V.b}
                 </div>
+                <div style="font-size:12px;color:var(--tinta-3);margin-top:3px">${p.utc ? U.diaLocal(p.utc) : 'sin fecha'} · <span class="etiqueta" style="font-size:10px">${U.esc(p.etapa)}</span></div>
               </div>
-              <table class="tabla" style="margin:0">
-                <thead><tr><th>Participante</th><th>Pronóstico</th><th>Resultado</th></tr></thead>
-                <tbody>${filas}</tbody>
-              </table>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
+                ${badgeEstado}
+                <span style="font-size:11px;color:var(--tinta-3)">${totalPreds} pronósticos</span>
+              </div>
+              <span style="color:var(--tinta-3);font-size:18px">›</span>
             </div>`;
-        }).filter(Boolean);
+        });
 
-        lista.innerHTML = bloques.length
-          ? bloques.join('')
-          : '<div class="aviso">Sin pronósticos registrados todavía.</div>';
+        lista.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">${tarjetas.join('')}</div>`;
+
+        lista.addEventListener('click', e => {
+          const card = e.target.closest('[data-abrir-pid]');
+          if (card) abrirModalPartido(card.dataset.abrirPid);
+        }, { once: true });
+        // Re-bind after each re-render
+        lista.onclick = e => {
+          const card = e.target.closest('[data-abrir-pid]');
+          if (card) abrirModalPartido(card.dataset.abrirPid);
+        };
 
       } else if (subPron === 'historial') {
         desc.textContent = 'Registro de cada vez que alguien guardó o cambió un pronóstico.';
         const historial = typeof Store.historialPredicciones === 'function'
-          ? await Store.historialPredicciones()
-          : [];
+          ? await Store.historialPredicciones() : [];
         if (!historial.length) {
           lista.innerHTML = '<div class="aviso">Sin cambios registrados todavía. Los nuevos pronósticos quedarán aquí.</div>';
           return;
@@ -598,10 +829,7 @@ import { CONFIG } from './js/config.js';
         lista.innerHTML = `
           <div class="tabla-envoltura">
             <table class="tabla">
-              <thead><tr>
-                <th>Fecha y hora</th><th>Participante</th><th>Partido</th>
-                <th>Nuevo</th><th>Anterior</th>
-              </tr></thead>
+              <thead><tr><th>Fecha y hora</th><th>Participante</th><th>Partido</th><th>Nuevo</th><th>Anterior</th></tr></thead>
               <tbody>${historial.map(h => {
                 const p = FIXTURE.partidos.find(x => x.id === h.pid);
                 const L = p && p.local ? FIXTURE.equipo(p.local) : null;
@@ -624,8 +852,7 @@ import { CONFIG } from './js/config.js';
       } else if (subPron === 'trampas') {
         desc.textContent = 'Intentos de guardar pronósticos después de que el partido ya inició.';
         const trampas = typeof Store.intentosTrampa === 'function'
-          ? await Store.intentosTrampa()
-          : [];
+          ? await Store.intentosTrampa() : [];
         if (!trampas.length) {
           lista.innerHTML = '<div class="aviso aviso--dorado">✅ Sin intentos sospechosos registrados.</div>';
           return;
@@ -633,18 +860,13 @@ import { CONFIG } from './js/config.js';
         lista.innerHTML = `
           <div class="tabla-envoltura">
             <table class="tabla">
-              <thead><tr>
-                <th>Fecha del intento</th><th>Participante</th><th>Partido</th>
-                <th>Marcador intentado</th><th>Minutos tarde</th>
-              </tr></thead>
+              <thead><tr><th>Fecha del intento</th><th>Participante</th><th>Partido</th><th>Marcador intentado</th><th>Minutos tarde</th></tr></thead>
               <tbody>${trampas.map(it => {
                 const p = FIXTURE.partidos.find(x => x.id === it.pid);
                 const L = p && p.local ? FIXTURE.equipo(p.local) : null;
                 const V = p && p.visitante ? FIXTURE.equipo(p.visitante) : null;
                 const partido = (L && V) ? `${L.b} ${U.esc(L.n)} vs ${U.esc(V.n)} ${V.b}` : U.esc(it.pid);
-                const minutosTarde = p && p.utc
-                  ? Math.round((it.t - new Date(p.utc).getTime()) / 60000)
-                  : '?';
+                const minutosTarde = p && p.utc ? Math.round((it.t - new Date(p.utc).getTime()) / 60000) : '?';
                 return `<tr>
                   <td class="sub" style="white-space:nowrap">${new Date(it.t).toLocaleString('es-CO')}</td>
                   <td><b style="color:var(--rojo)">${U.esc(it.nombre || it.uid || '—')}</b></td>
@@ -657,10 +879,38 @@ import { CONFIG } from './js/config.js';
           </div>`;
       }
     } catch (err) {
-      lista.innerHTML = `<div class="aviso" style="color:var(--rojo)">⚠️ Error al cargar: ${U.esc(err.message)}</div>`;
+      lista.innerHTML = `<div class="aviso" style="color:var(--rojo)">⚠️ Error: ${U.esc(err.message)}</div>`;
       console.error('pintarPron:', err);
     }
   }
+
+  /* ============ TEMA ESPECIAL (TEST) ============ */
+  document.getElementById('b-tema-on').onclick = () => {
+    const id = 'tema-especial-css';
+    if (document.getElementById(id)) return;
+    const style = document.createElement('style');
+    style.id = id;
+    style.innerHTML = `
+      @keyframes pan-bg { 0% { background-position: 0% 50%; } 100% { background-position: 100% 50%; } }
+      body {
+        background-image: linear-gradient(rgba(11, 13, 20, 0.75), rgba(11, 13, 20, 0.85)), url('https://images.pexels.com/photos/274506/pexels-photo-274506.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2');
+        background-size: cover; background-position: center center; background-attachment: fixed;
+        animation: pan-bg 70s linear infinite alternate;
+      }
+      .panel, .partido, .modal-contenido, .campeon-op, .sala-card, .heroe, .podio__caja {
+        background: rgba(28, 32, 46, 0.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .barra { background: rgba(18, 21, 32, 0.8); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+    `;
+    document.head.appendChild(style);
+    U.toast('Tema de Colombia activado para esta sesión.');
+  };
+  document.getElementById('b-tema-off').onclick = () => {
+    const el = document.getElementById('tema-especial-css');
+    if (el) el.remove();
+    U.toast('Tema de Colombia desactivado.');
+  };
 
   await cargar();
   Store.enCambios(cargar);

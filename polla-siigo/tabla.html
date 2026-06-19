@@ -5,13 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tabla de posiciones — Polla Siigo 2026</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0846f0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="stylesheet" href="css/estilos.css">
 </head>
 <body>
 
 <header class="barra">
   <div class="contenedor barra__fila">
-    <a class="logo" href="app.html"><span class="logo__balon">⚽</span><span>Polla Siigo <small>Mundial 2026</small></span></a>
+    <a class="logo" href="app.html"><img src="icons/icon-192.png" alt="Logo" class="logo__img"><span id="logo-texto">Polla Siigo <small>Mundial 2026</small></span></a>
     <nav class="nav" id="nav">
       <a href="app.html">Partidos</a>
       <a href="tabla.html" class="activo">Tabla</a>
@@ -91,11 +95,14 @@ import { CONFIG } from './js/config.js';
     const bar = document.getElementById('sala-bar');
     bar.style.display = 'flex';
     Store.salaPorId(salaId).then(sala => {
-      if (sala) document.getElementById('sala-bar-nombre').textContent = sala.nombre;
+      if (!sala) return;
+      document.getElementById('sala-bar-nombre').textContent = sala.nombre;
+      const logoTexto = document.getElementById('logo-texto');
+      if (logoTexto) logoTexto.innerHTML = `${U.esc(sala.nombre)} <small>Mundial 2026</small>`;
     });
   }
   // Mantener salaId en los enlaces de nav
-  ['app.html','cuentas.html'].forEach(page => {
+  ['app.html','cuentas.html', 'admin.html'].forEach(page => {
     const a = document.querySelector(`a[href="${page}"]`);
     if (a && salaId !== 'siigo') a.href = `${page}?sala=${salaId}`;
   });
@@ -103,19 +110,12 @@ import { CONFIG } from './js/config.js';
   let filas = [], filtro = '';
 
   async function cargar() {
-    const publicada = salaId === 'siigo' ? await Store.tablaPublicada() : null;
-    if (publicada && publicada.filas && publicada.filas.length) {
-      filas = publicada.filas;
-      document.getElementById('nota-tabla').textContent =
-        `Tabla oficial publicada el ${new Date(publicada.t).toLocaleString('es-CO')}.`;
-    } else {
-      const [usuarios, todas, resultados, ajustes] = await Promise.all([
-        Store.usuariosSala(salaId), Store.todasPrediccionesSala(salaId), Store.resultados(), Store.ajustes()
-      ]);
-      filas = Puntos.tabla(usuarios, todas, resultados, ajustes);
-      document.getElementById('nota-tabla').textContent =
-        'Cálculo en vivo con los resultados cargados hasta ahora.';
-    }
+    const [usuarios, todas, resultados, ajustes] = await Promise.all([
+      Store.usuariosSala(salaId), Store.todasPrediccionesSala(salaId), Store.resultados(), Store.ajustes()
+    ]);
+    filas = Puntos.tabla(usuarios, todas, resultados, ajustes);
+    document.getElementById('nota-tabla').textContent =
+      'Cálculo en vivo con los resultados cargados hasta ahora.';
     pintar();
   }
 

@@ -75,12 +75,7 @@ a:hover { text-decoration: underline; }
 
 .logo { display: flex; align-items: center; gap: 10px; font-weight: 900; letter-spacing: .3px; color: var(--tinta); }
 .logo:hover { text-decoration: none; }
-.logo__balon {
-  width: 38px; height: 38px; border-radius: 50%;
-  display: grid; place-items: center; font-size: 20px;
-  background: linear-gradient(135deg, var(--azul), #062a8f);
-  box-shadow: inset 0 0 0 2px rgba(255,255,255,.18), 0 4px 14px rgba(8,70,240,.45);
-}
+.logo__img { height: 38px; }
 .logo small { display: block; font-weight: 600; color: var(--tinta-2); font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase; }
 
 .nav { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; }
@@ -107,6 +102,20 @@ a:hover { text-decoration: underline; }
 }
 .heroe h1 .acento { color: var(--dorado); }
 .heroe p.bajada { color: var(--tinta-2); font-size: 17px; max-width: 560px; margin: 8px auto 0; }
+
+#install-pwa-button {
+  margin: 24px auto 0;
+  padding: 14px 24px;
+  font-size: 16px;
+  background: linear-gradient(135deg, var(--verde-claro), #128a3c);
+  box-shadow: 0 8px 22px rgba(31,168,77,.45);
+  border: 1px solid rgba(255,255,255,0.2);
+  animation: resplandor-install 2.5s ease-in-out infinite alternate;
+}
+@keyframes resplandor-install {
+  from { transform: scale(1); }
+  to   { transform: scale(1.05); box-shadow: 0 10px 30px rgba(31,168,77,.6); }
+}
 
 /* Banner partido en vivo / próximo */
 .hero-banner {
@@ -199,7 +208,58 @@ a:hover { text-decoration: underline; }
 .campo input:focus, .campo select:focus, .campo textarea:focus {
   border-color: var(--azul-claro); outline: none; box-shadow: 0 0 0 3px rgba(8,70,240,.25);
 }
+.campo-clave {
+  position: relative;
+}
+.toggle-clave {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  font-size: 20px;
+  color: var(--tinta-3);
+  line-height: 1;
+  border-radius: 8px;
+}
+.toggle-clave:hover { background: rgba(255,255,255,0.05); }
 .ayuda { font-size: 12.5px; color: var(--tinta-3); margin-top: 5px; }
+
+.pronostico--filas {
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 340px;
+  margin: 0 auto;
+}
+.pronostico__fila {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+.pronostico__fila .equipo {
+  gap: 8px;
+  flex: 1;
+}
+.pronostico__fila .equipo .bandera {
+  font-size: 24px;
+}
+.pronostico__fila .equipo .nombre {
+  font-size: 14px;
+}
+.pronostico__acciones {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.pronostico__acciones .boton { width: 100%; }
 
 .boton {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -660,6 +720,9 @@ table.tabla { width: 100%; border-collapse: collapse; background: var(--superfic
   font-size: 10.5px; font-weight: 900; letter-spacing: 1.6px; text-transform: uppercase;
   color: var(--azul-claro); margin-bottom: 8px;
 }
+summary.pro-header {
+  margin-bottom: 0;
+}
 .pro-panel--lineup .pro-header { color: var(--verde-claro); }
 .pro-consejo {
   font-size: 12.5px; color: var(--tinta-2); font-style: italic;
@@ -950,4 +1013,40 @@ table.tabla { width: 100%; border-collapse: collapse; background: var(--superfic
   /* 8. Grupos del Mundial */
   .grupos-grid { grid-template-columns: 1fr; }
   .grupos-leyenda { gap: 8px; font-size: 11px; }
+}
+
+/* ============================================================
+   PANELES COLAPSABLES (details/summary)
+   ============================================================ */
+.collapsible-panel {
+  padding: 0 !important; /* Override original padding */
+}
+.collapsible-panel > summary {
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none; /* Remove default marker */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.collapsible-panel > summary::-webkit-details-marker {
+  display: none; /* Remove default marker for Chrome/Safari */
+}
+.collapsible-panel > summary::after {
+  content: '▼';
+  font-size: 10px;
+  margin-left: auto;
+  transition: transform 0.2s;
+  color: var(--tinta-3);
+  flex-shrink: 0;
+}
+.collapsible-panel[open] > summary {
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.collapsible-panel[open] > summary::after {
+  transform: rotate(180deg);
+}
+.collapsible-panel > *:not(summary) {
+  padding: 14px 16px;
+  padding-top: 12px;
 }

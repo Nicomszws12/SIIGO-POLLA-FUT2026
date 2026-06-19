@@ -4,14 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Partidos — Polla Siigo 2026</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0846f0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="stylesheet" href="css/estilos.css?v=2">
 </head>
 <body>
 
 <header class="barra">
   <div class="contenedor barra__fila">
-    <a class="logo" href="app.html"><span class="logo__balon">⚽</span><span>Polla Siigo <small>Mundial 2026</small></span></a>
+    <a class="logo" href="app.html"><img src="icons/icon-192.png" alt="Logo Polla Siigo" class="logo__img"><span id="logo-texto">Polla Siigo <small>Mundial 2026</small></span></a>
     <nav class="nav" id="nav">
       <a href="app.html" class="activo">Partidos</a>
       <a href="tabla.html">Tabla</a>
@@ -51,9 +55,6 @@
 
   <!-- ============ TAB PARTIDOS ============ -->
   <section id="tab-partidos">
-    <!-- Contenedor del Widget PRO -->
-    <div id="contenedor-widget-pro" style="margin-bottom: 20px;"></div>
-
     <div class="chips" id="chips">
       <button class="chip" data-f="hoy" type="button">📅 Hoy</button>
       <button class="chip" data-f="pendientes" type="button">✏️ Me faltan</button>
@@ -131,7 +132,7 @@ import { CONFIG } from './js/config.js';
   if (yo.estado === 'pendiente') { U.toast('Tu cuenta aún está pendiente de aprobación.', 'info'); await Store.logout(); location.href = 'index.html'; return; }
 
   /* --- sala activa -------------------------------------------- */
-  const salaId = new URLSearchParams(location.search).get('sala') || 'siigo';
+  const salaId = new URLSearchParams(location.search).get('sala') || localStorage.getItem('salaActiva') || 'siigo';
   localStorage.setItem('salaActiva', salaId);
 
   // Mostrar barra de sala (solo si es privada)
@@ -140,6 +141,10 @@ import { CONFIG } from './js/config.js';
     bar.style.display = 'flex';
     Store.salaPorId(salaId).then(sala => {
       if (!sala) return;
+      const logoTexto = document.getElementById('logo-texto');
+      if (logoTexto) {
+        logoTexto.innerHTML = `${U.esc(sala.nombre)} <small>Mundial 2026</small>`;
+      }
       document.getElementById('sala-bar-nombre').textContent = sala.nombre;
       const codEl = document.getElementById('sala-bar-codigo');
       if (sala.codigo) {
@@ -167,36 +172,11 @@ import { CONFIG } from './js/config.js';
 
   // Propagar ?sala= en links de navegación cuando es sala privada
   if (salaId !== 'siigo') {
-    ['tabla.html', 'cuentas.html'].forEach(page => {
+    ['tabla.html', 'cuentas.html', 'admin.html'].forEach(page => {
       const a = document.querySelector(`a[href="${page}"]`);
       if (a) a.href = `${page}?sala=${salaId}`;
     });
   }
-
-  /* --- WIDGETS OFICIALES — Mundial 2026 --- */
-  const fechaHoy = new Date().toLocaleDateString('en-CA');
-
-  document.getElementById('contenedor-widget-pro').innerHTML = `
-    <div style="margin-bottom:10px; padding-left:4px;">
-      <span style="font-weight:800; font-size:15px; color:var(--tinta-2); letter-spacing:.3px;">⚡ Marcador en Vivo — FIFA Mundial 2026</span>
-    </div>
-    <div id="wg-api-football-games"
-         data-host="v3.football.api-sports.io"
-         data-key="${CONFIG.API_FUTBOL.apiKey}"
-         data-date="${fechaHoy}"
-         data-league="1"
-         data-season="2026"
-         data-theme="dark"
-         data-refresh="30"
-         data-show-toolbar="false"
-         data-show-errors="false"
-         data-show-logos="true"
-         data-modal-game="true"
-         data-modal-standings="true">
-      <div style="text-align:center; padding:16px; color:var(--tinta-3); font-size:13px;">⏳ Cargando datos en vivo del Mundial 2026...</div>
-    </div>`;
-
-  /* grupos: se inyectan al abrir el tab para garantizar re-init del widget */
 
   if (!document.getElementById('api-football-widget-script')) {
     const scr = document.createElement('script');
@@ -308,14 +288,40 @@ import { CONFIG } from './js/config.js';
   }
 
   function filtrar(lista) {
-    const hoyLocal = new Date().toLocaleDateString('en-CA');           // YYYY-MM-DD local
+    const hoyLocal = new Date().toLocaleDateString('en-CA');
     let out = lista;
-    if (filtro === 'hoy') out = out.filter(p =>
-      (p.utc && new Date(p.utc).toLocaleDateString('en-CA') === hoyLocal) ||
-      (resultados[p.id] || {}).estado === 'en_juego');
-    if (filtro === 'pendientes') out = out.filter(p => U.abierto(p, resultados[p.id]) && !misPred[p.id]);
-    if (/^j[123]$/.test(filtro)) out = out.filter(p => p.fase === 'grupos' && p.jornada === +filtro[1]);
-    if (filtro === 'elim') out = out.filter(p => p.fase === 'eliminatorias');
+
+    if (filtro === 'hoy') {
+      const partidosDeHoy = lista.filter(p => p.utc && new Date(p.utc).toLocaleDateString('en-CA') === hoyLocal);
+      const todosFinalizados = partidosDeHoy.length > 0 && partidosDeHoy.every(p => (resultados[p.id] || {}).estado === 'finalizado');
+
+      if (todosFinalizados) {
+        const proximoPartido = lista
+          .filter(p => p.utc && new Date(p.utc).getTime() > new Date(hoyLocal + 'T23:59:59Z').getTime())
+          .sort((a, b) => a.utc.localeCompare(b.utc))[0];
+        
+        if (proximoPartido) {
+          const proximaFecha = new Date(proximoPartido.utc).toLocaleDateString('en-CA');
+          out = lista.filter(p => p.utc && new Date(p.utc).toLocaleDateString('en-CA') === proximaFecha);
+        } else {
+          out = partidosDeHoy; // No hay más, mostrar los de hoy
+        }
+      } else {
+        // Comportamiento original: los de hoy + los que estén en vivo
+        out = lista.filter(p =>
+          (p.utc && new Date(p.utc).toLocaleDateString('en-CA') === hoyLocal) ||
+          (resultados[p.id] || {}).estado === 'en_juego');
+      }
+    } else if (filtro === 'pendientes') {
+      out = out.filter(p => U.abierto(p, resultados[p.id]) && !misPred[p.id]);
+    } else if (/^j[123]$/.test(filtro)) {
+      out = out.filter(p => p.fase === 'grupos' && p.jornada === +filtro[1]);
+    } else if (filtro === 'elim') {
+      out = out.filter(p => p.fase === 'eliminatorias');
+    } else if (filtro === 'todos') {
+      // No se aplica filtro, `out` ya es `lista`
+    }
+
     if (filtroGrupo) out = out.filter(p => p.grupo === filtroGrupo || (p.fase === 'eliminatorias' && !filtroGrupo));
     return out;
   }
@@ -481,19 +487,27 @@ import { CONFIG } from './js/config.js';
     } else if (U.abierto(p, res)) {
       const gl = pred ? pred.gl : '', gv = pred ? pred.gv : '';
       zona = `
-        <div class="pronostico" data-pid="${p.id}">
-          <div class="stepper">
-            <button type="button" data-st="l-">−</button>
-            <input inputmode="numeric" data-in="l" value="${gl}" placeholder="–" aria-label="Goles ${U.esc(L.n)}">
-            <button type="button" data-st="l+">+</button>
+        <div class="pronostico pronostico--filas" data-pid="${p.id}">
+          <div class="pronostico__fila">
+            <div class="equipo"><span class="bandera">${L.b || '⚽'}</span><span class="nombre">${U.esc(L.n)}</span></div>
+            <div class="stepper">
+              <button type="button" data-st="l-">−</button>
+              <input inputmode="numeric" data-in="l" value="${gl}" placeholder="–" aria-label="Goles ${U.esc(L.n)}">
+              <button type="button" data-st="l+">+</button>
+            </div>
           </div>
-          <button class="boton boton--verde boton--mini" data-guardar type="button">${pred ? 'Actualizar' : 'Guardar'} ✓</button>
-          <div class="stepper">
-            <button type="button" data-st="v-">−</button>
-            <input inputmode="numeric" data-in="v" value="${gv}" placeholder="–" aria-label="Goles ${U.esc(V.n)}">
-            <button type="button" data-st="v+">+</button>
+          <div class="pronostico__fila">
+            <div class="equipo"><span class="bandera">${V.b || '⚽'}</span><span class="nombre">${U.esc(V.n)}</span></div>
+            <div class="stepper">
+              <button type="button" data-st="v-">−</button>
+              <input inputmode="numeric" data-in="v" value="${gv}" placeholder="–" aria-label="Goles ${U.esc(V.n)}">
+              <button type="button" data-st="v+">+</button>
+            </div>
           </div>
-          ${pred ? `<span class="pronostico__guardado">Guardado: ${pred.gl}–${pred.gv} ✓</span>` : ''}
+          <div class="pronostico__acciones">
+            <button class="boton boton--verde" data-guardar type="button">${pred ? 'Actualizar' : 'Guardar'} ✓</button>
+            ${pred ? `<span class="pronostico__guardado">Guardado: ${pred.gl}–${pred.gv} ✓</span>` : ''}
+          </div>
         </div>`;
     } else {
       const cal = Puntos.calificar(pred, res, p.fase);
@@ -595,9 +609,37 @@ import { CONFIG } from './js/config.js';
   /* --- ESTADÍSTICAS PRO (predicción IA + alineaciones) --------- */
   function renderProStats(p, res) {
     if (!p.local || !p.visitante) return '';
+
     const pred = res?.prediccion;
     const alin = res?.alineacion;
-    if (!pred && !alin) return '';
+    const analisisIA = res?.analisisIA;
+
+    // Si tenemos un análisis de IA, lo mostramos con prioridad.
+    if (analisisIA && window.IA && typeof window.IA.mdAHtml === 'function') {
+      return `<details class="ia-panel collapsible-panel" open>
+        <summary>
+          <div class="ia-badge">🤖 IA</div>
+          <div class="ia-panel__info">
+            <div class="ia-panel__titulo">Análisis del Partido</div>
+            <div class="ia-panel__sub">Análisis generado por IA</div>
+          </div>
+          <button class="boton boton--fantasma boton--mini" data-generar-ia="${p.id}" type="button">🔄 Actualizar</button>
+        </summary>
+        <div class="ia-analisis" style="border: none; background: transparent; padding: 0; margin-top: 10px; font-size: 13.5px; line-height: 1.7;">
+            ${IA.mdAHtml(analisisIA)}
+        </div>
+      </details>`;
+    }
+
+    // Si no hay análisis de IA pero la función está disponible, mostrar el botón para generar.
+    if (window.IA?.disponible()) {
+        return `<div class="ia-panel" style="background:transparent; border-style:dashed; text-align:center; padding: 20px;">
+            <p style="margin:0 0 10px; font-size:13px; color:var(--tinta-2)">¿Quieres un análisis detallado de este partido?</p>
+            <button class="boton boton--mini" data-generar-ia="${p.id}" type="button">🤖 Generar con IA</button>
+        </div>`;
+    }
+
+    if (!pred && !alin) return ''; // Si no hay IA ni datos de predicción/alineación, no mostrar nada.
     const L = FIXTURE.equipo(p.local), V = FIXTURE.equipo(p.visitante);
     let html = '';
 
@@ -651,93 +693,94 @@ import { CONFIG } from './js/config.js';
         tags.push(`<span class="ia-tag ia-tag--gold">${ln < 0 ? 'Menos de' : 'Más de'} ${Math.abs(ln)} goles</span>`);
       }
 
-      html += `<div class="ia-panel">
-        <div class="ia-panel__head">
-          <div class="ia-badge">🤖 IA</div>
-          <div class="ia-panel__info">
-            <div class="ia-panel__titulo">Análisis del Partido</div>
-            <div class="ia-panel__sub">Modelo predictivo · API-Football</div>
-          </div>
-          <div class="ia-confianza" style="color:${confianza.col}">${confianza.txt}</div>
-        </div>
+      html += `<details class="ia-panel collapsible-panel">
+        <summary>
+            <div class="ia-badge">🤖 IA</div>
+            <div class="ia-panel__info">
+                <div class="ia-panel__titulo">Análisis del Partido</div>
+                <div class="ia-panel__sub">Modelo predictivo · API-Football</div>
+            </div>
+            <div class="ia-confianza" style="color:${confianza.col}">${confianza.txt}</div>
+        </summary>
+        <div>
+          <div class="ia-analisis">${analisis}</div>
+          ${tags.length ? `<div class="ia-tags">${tags.join('')}</div>` : ''}
+          ${pred.consejo ? `<div class="ia-consejo">"${U.esc(pred.consejo)}"</div>` : ''}
 
-        <div class="ia-analisis">${analisis}</div>
-        ${tags.length ? `<div class="ia-tags">${tags.join('')}</div>` : ''}
-        ${pred.consejo ? `<div class="ia-consejo">"${U.esc(pred.consejo)}"</div>` : ''}
+          ${!equilibrado ? `<div class="ia-favorito">
+            <span class="ia-fav__label">Favorito</span>
+            <span class="ia-fav__valor">${favBan} <b>${U.esc(favNom)}</b> · ${favPct}</span>
+          </div>` : ''}
 
-        ${!equilibrado ? `<div class="ia-favorito">
-          <span class="ia-fav__label">Favorito</span>
-          <span class="ia-fav__valor">${favBan} <b>${U.esc(favNom)}</b> · ${favPct}</span>
-        </div>` : ''}
-
-        <div class="ia-barras">
-          <div class="ia-fila${pl >= pe && pl >= pv && !equilibrado ? ' ia-fila--top' : ''}">
-            <span class="ia-team">${L.b} <span class="ia-nom">${U.esc((L.n||'').split(' ')[0])}</span></span>
-            <div class="ia-bar-wrap"><div class="ia-bar-fill ia-bar-fill--l" style="width:${pl}%"></div></div>
-            <span class="ia-pct">${pred.pct.l}</span>
-          </div>
-          <div class="ia-fila${pe > pl && pe > pv ? ' ia-fila--top' : ''}">
-            <span class="ia-team">🤝 <span class="ia-nom">Empate</span></span>
-            <div class="ia-bar-wrap"><div class="ia-bar-fill ia-bar-fill--e" style="width:${pe}%"></div></div>
-            <span class="ia-pct">${pred.pct.e}</span>
-          </div>
-          <div class="ia-fila${pv > pl && pv >= pe && !equilibrado ? ' ia-fila--top' : ''}">
-            <span class="ia-team">${V.b} <span class="ia-nom">${U.esc((V.n||'').split(' ')[0])}</span></span>
-            <div class="ia-bar-wrap"><div class="ia-bar-fill ia-bar-fill--v" style="width:${pv}%"></div></div>
-            <span class="ia-pct">${pred.pct.v}</span>
-          </div>
-        </div>
-
-        <div class="ia-footer">
-          <div class="ia-goles-esp">
-            <span>⚽</span>
-            <div>
-              <div class="ia-goles-val">${pred.goles.l} &minus; ${pred.goles.v}</div>
-              <div class="ia-goles-lab">Goles esperados</div>
+          <div class="ia-barras">
+            <div class="ia-fila${pl >= pe && pl >= pv && !equilibrado ? ' ia-fila--top' : ''}">
+              <span class="ia-team">${L.b} <span class="ia-nom">${U.esc((L.n||'').split(' ')[0])}</span></span>
+              <div class="ia-bar-wrap"><div class="ia-bar-fill ia-bar-fill--l" style="width:${pl}%"></div></div>
+              <span class="ia-pct">${pred.pct.l}</span>
+            </div>
+            <div class="ia-fila${pe > pl && pe > pv ? ' ia-fila--top' : ''}">
+              <span class="ia-team">🤝 <span class="ia-nom">Empate</span></span>
+              <div class="ia-bar-wrap"><div class="ia-bar-fill ia-bar-fill--e" style="width:${pe}%"></div></div>
+              <span class="ia-pct">${pred.pct.e}</span>
+            </div>
+            <div class="ia-fila${pv > pl && pv >= pe && !equilibrado ? ' ia-fila--top' : ''}">
+              <span class="ia-team">${V.b} <span class="ia-nom">${U.esc((V.n||'').split(' ')[0])}</span></span>
+              <div class="ia-bar-wrap"><div class="ia-bar-fill ia-bar-fill--v" style="width:${pv}%"></div></div>
+              <span class="ia-pct">${pred.pct.v}</span>
             </div>
           </div>
-        </div>
 
-        ${pred.h2h ? (() => {
-          const h = pred.h2h;
-          const tot = h.w1 + h.empate + h.w2;
-          const marcadores = h.recientes.map(r => `${r.gl}–${r.gv}`).join(' · ');
-          return `<div class="ia-h2h">
-            <div class="ia-h2h__titulo">🕰 Historial (últimos ${tot})</div>
-            <div class="ia-h2h__barras">
-              <div class="ia-h2h__bloque" style="flex:${h.w1||0.1}">
-                <div class="ia-h2h__num">${h.w1}</div>
-                <div class="ia-h2h__bar" style="background:var(--verde-claro)"></div>
-                <div class="ia-h2h__lab">${U.esc((L.n||'').split(' ')[0])}</div>
-              </div>
-              <div class="ia-h2h__bloque" style="flex:${h.empate||0.1}">
-                <div class="ia-h2h__num">${h.empate}</div>
-                <div class="ia-h2h__bar" style="background:var(--tinta-3)"></div>
-                <div class="ia-h2h__lab">Empate</div>
-              </div>
-              <div class="ia-h2h__bloque" style="flex:${h.w2||0.1}">
-                <div class="ia-h2h__num">${h.w2}</div>
-                <div class="ia-h2h__bar" style="background:var(--azul-claro)"></div>
-                <div class="ia-h2h__lab">${U.esc((V.n||'').split(' ')[0])}</div>
+          <div class="ia-footer">
+            <div class="ia-goles-esp">
+              <span>⚽</span>
+              <div>
+                <div class="ia-goles-val">${pred.goles.l} &minus; ${pred.goles.v}</div>
+                <div class="ia-goles-lab">Goles esperados</div>
               </div>
             </div>
-            <div class="ia-h2h__marcadores">Resultados: ${marcadores}</div>
-          </div>`;
-        })() : ''}
+          </div>
 
-        ${(() => {
-          const lesL = pred.lesiones?.[p.local]    || [];
-          const lesV = pred.lesiones?.[p.visitante] || [];
-          if (!lesL.length && !lesV.length) return '';
-          const fmt = (arr, ban) => arr.length
-            ? `<div class="ia-les__equipo">${ban} ${arr.map(j => `<span class="ia-les__jug" title="${U.esc(j.razon)}">${U.esc(j.nombre)}</span>`).join('')}</div>`
-            : '';
-          return `<div class="ia-lesiones">
-            <div class="ia-h2h__titulo">🚑 Bajas confirmadas</div>
-            ${fmt(lesL, L.b)}${fmt(lesV, V.b)}
-          </div>`;
-        })()}
-      </div>`;
+          ${pred.h2h ? (() => {
+            const h = pred.h2h;
+            const tot = h.w1 + h.empate + h.w2;
+            const marcadores = h.recientes.map(r => `${r.gl}–${r.gv}`).join(' · ');
+            return `<div class="ia-h2h">
+              <div class="ia-h2h__titulo">🕰 Historial (últimos ${tot})</div>
+              <div class="ia-h2h__barras">
+                <div class="ia-h2h__bloque" style="flex:${h.w1||0.1}">
+                  <div class="ia-h2h__num">${h.w1}</div>
+                  <div class="ia-h2h__bar" style="background:var(--verde-claro)"></div>
+                  <div class="ia-h2h__lab">${U.esc((L.n||'').split(' ')[0])}</div>
+                </div>
+                <div class="ia-h2h__bloque" style="flex:${h.empate||0.1}">
+                  <div class="ia-h2h__num">${h.empate}</div>
+                  <div class="ia-h2h__bar" style="background:var(--tinta-3)"></div>
+                  <div class="ia-h2h__lab">Empate</div>
+                </div>
+                <div class="ia-h2h__bloque" style="flex:${h.w2||0.1}">
+                  <div class="ia-h2h__num">${h.w2}</div>
+                  <div class="ia-h2h__bar" style="background:var(--azul-claro)"></div>
+                  <div class="ia-h2h__lab">${U.esc((V.n||'').split(' ')[0])}</div>
+                </div>
+              </div>
+              <div class="ia-h2h__marcadores">Resultados: ${marcadores}</div>
+            </div>`;
+          })() : ''}
+
+          ${(() => {
+            const lesL = pred.lesiones?.[p.local]    || [];
+            const lesV = pred.lesiones?.[p.visitante] || [];
+            if (!lesL.length && !lesV.length) return '';
+            const fmt = (arr, ban) => arr.length
+              ? `<div class="ia-les__equipo">${ban} ${arr.map(j => `<span class="ia-les__jug" title="${U.esc(j.razon)}">${U.esc(j.nombre)}</span>`).join('')}</div>`
+              : '';
+            return `<div class="ia-lesiones">
+              <div class="ia-h2h__titulo">🚑 Bajas confirmadas</div>
+              ${fmt(lesL, L.b)}${fmt(lesV, V.b)}
+            </div>`;
+          })()}
+        </div>
+      </details>`;
     }
 
     if (alin && alin.length === 2) {
@@ -746,8 +789,8 @@ import { CONFIG } from './js/config.js';
       const jug = (eq, izq) => eq.xi.map(j =>
         `<div class="lineup-j ${izq ? '' : 'lineup-j--v'}"><span class="lineup-num">${j.num}</span><span class="lineup-pos">${posI[j.pos]||''}</span><span>${U.esc(j.n)}</span></div>`
       ).join('');
-      html += `<div class="pro-panel pro-panel--lineup">
-        <div class="pro-header">👕 Alineaciones Confirmadas</div>
+      html += `<details class="pro-panel pro-panel--lineup collapsible-panel">
+        <summary class="pro-header">👕 Alineaciones Confirmadas</summary>
         <div class="lineup-grid">
           <div class="lineup-col">
             <div class="lineup-form">${L.b} ${U.esc(eqL.f)}</div>
@@ -759,7 +802,7 @@ import { CONFIG } from './js/config.js';
             ${jug(eqV, false)}
           </div>
         </div>
-      </div>`;
+      </details>`;
     }
     return html;
   }
@@ -910,6 +953,25 @@ import { CONFIG } from './js/config.js';
 
   /* steppers + guardar (delegación de eventos) */
   document.getElementById('lista-partidos').addEventListener('click', async e => {
+    /* Estadísticas del partido (expandible) */
+    if (e.target.closest('[data-generar-ia]')) {
+      const btn = e.target.closest('[data-generar-ia]');
+      const pid = btn.dataset.generarIa;
+      const textoOriginal = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Analizando...';
+      try {
+        await ApiFutbol.generarAnalisisIA(pid);
+        U.toast('Análisis de IA generado correctamente.', 'ok');
+        await cargar(); // Recargar todo para mostrar el nuevo análisis
+      } catch (err) {
+        U.toast(err.message, 'error');
+        btn.disabled = false;
+        btn.innerHTML = textoOriginal;
+      }
+      return;
+    }
+
     /* Estadísticas del partido (expandible) */
     if (e.target.closest('[data-ver-stats]')) {
       const btn = e.target.closest('[data-ver-stats]');
