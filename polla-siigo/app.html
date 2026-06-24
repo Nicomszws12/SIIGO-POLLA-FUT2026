@@ -7,8 +7,9 @@
   <link rel="icon" href="icons/icon-192.png" type="image/png">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0846f0">
-  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="css/estilos.css?v=2">
 </head>
 <body>
@@ -21,7 +22,6 @@
       <a href="tabla.html">Tabla</a>
       <a href="cuentas.html">Cuentas</a>
       <a href="reglas.html">Reglas</a>
-      <a href="lobby.html">🏟 Salas</a>
     </nav>
     <div class="usuario-mini">
       <div class="avatar" id="avatar">?</div>
@@ -29,13 +29,6 @@
     </div>
   </div>
 </header>
-
-<div id="sala-bar" style="background:rgba(255,255,255,.04);border-bottom:1px solid var(--linea);padding:7px 24px;align-items:center;gap:10px;font-size:13px;display:none">
-  <span style="color:var(--tinta-3)">Liga activa:</span>
-  <b id="sala-bar-nombre" style="color:var(--dorado)">—</b>
-  <span id="sala-bar-codigo" style="font-family:monospace;font-size:12px;background:rgba(255,255,255,.07);padding:2px 8px;border-radius:6px;color:var(--tinta-2);cursor:pointer" title="Clic para copiar el código de invitación"></span>
-  <a href="lobby.html" class="boton boton--fantasma boton--mini" style="margin-left:auto">⇄ Cambiar sala</a>
-</div>
 
 <main class="contenedor">
 
@@ -114,6 +107,9 @@
   </div>
 </div>
 
+<!-- Sonidos de la aplicación -->
+<audio id="sonido-gol" src="sounds/gol.mp3" preload="auto"></audio>
+
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script type="module" src="js/config.js"></script>
 <script type="module" src="js/fixture.js"></script>
@@ -122,6 +118,8 @@
 <script type="module" src="js/puntos.js"></script>
 <script type="module" src="js/api-futbol.js"></script>
 <script type="module" src="js/email.js"></script>
+<script type="module" src="js/grupos-api.js"></script>
+<script type="module" src="js/notificaciones.js"></script>
 <script type="module">
 import { CONFIG } from './js/config.js';
 
@@ -130,32 +128,6 @@ import { CONFIG } from './js/config.js';
   const yo = await Store.sesion();
   if (!U.requiereSesion(yo)) return;
   if (yo.estado === 'pendiente') { U.toast('Tu cuenta aún está pendiente de aprobación.', 'info'); await Store.logout(); location.href = 'index.html'; return; }
-
-  /* --- sala activa -------------------------------------------- */
-  const salaId = new URLSearchParams(location.search).get('sala') || localStorage.getItem('salaActiva') || 'siigo';
-  localStorage.setItem('salaActiva', salaId);
-
-  // Mostrar barra de sala (solo si es privada)
-  if (salaId !== 'siigo') {
-    const bar = document.getElementById('sala-bar');
-    bar.style.display = 'flex';
-    Store.salaPorId(salaId).then(sala => {
-      if (!sala) return;
-      const logoTexto = document.getElementById('logo-texto');
-      if (logoTexto) {
-        logoTexto.innerHTML = `${U.esc(sala.nombre)} <small>Mundial 2026</small>`;
-      }
-      document.getElementById('sala-bar-nombre').textContent = sala.nombre;
-      const codEl = document.getElementById('sala-bar-codigo');
-      if (sala.codigo) {
-        codEl.textContent = sala.codigo;
-        codEl.onclick = () => {
-          navigator.clipboard?.writeText(sala.codigo).catch(() => {});
-          U.toast(`Código ${sala.codigo} copiado 📋`);
-        };
-      }
-    });
-  }
 
   /* --- estado en memoria -------------------------------------- */
   let resultados = {}, ajustes = {}, misPred = {}, predsByPartido = {}, filtro = 'hoy', filtroGrupo = '';
@@ -170,26 +142,20 @@ import { CONFIG } from './js/config.js';
   }
   document.getElementById('salir').onclick = async () => { await Store.logout(); location.href = 'index.html'; };
 
-  // Propagar ?sala= en links de navegación cuando es sala privada
-  if (salaId !== 'siigo') {
-    ['tabla.html', 'cuentas.html', 'admin.html'].forEach(page => {
-      const a = document.querySelector(`a[href="${page}"]`);
-      if (a) a.href = `${page}?sala=${salaId}`;
-    });
-  }
-
-  if (!document.getElementById('api-football-widget-script')) {
+  // Cargar script del widget de detalles del partido
+  if (!document.getElementById('api-sports-widget-script')) {
     const scr = document.createElement('script');
-    scr.id = 'api-football-widget-script';
-    scr.src = 'https://widgets.api-sports.io/2.0.0/widgets.js';
+    scr.id = 'api-sports-widget-script';
+    scr.src = 'https://widgets.api-sports.io/3.1.0/game';
     document.head.appendChild(scr);
   } else {
     window.document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true, cancelable: true }));
   }
 
   async function pintarResumenYo() {
-    const [usuarios, todas] = await Promise.all([Store.usuariosSala(salaId), Store.todasPrediccionesSala(salaId)]);
-    const filas = Puntos.tabla(usuarios, todas, resultados, ajustes);
+    const [usuarios, todas] = await Promise.all([Store.usuariosSala(), Store.todasPrediccionesSala()]);
+    const puntosManuales = await Store.puntosManuales();
+    const filas = Puntos.tabla(usuarios, todas, resultados, ajustes, puntosManuales);
     const fila = filas.find(f => f.uid === yo.uid);
     document.getElementById('resumen-yo').innerHTML = fila
       ? `Llevas <b style="color:var(--dorado)">${fila.pts} pts</b> · puesto <b>${fila.pos}</b> de ${filas.length} · ${fila.exactos} exactos`
@@ -198,24 +164,53 @@ import { CONFIG } from './js/config.js';
 
   /* --- cuenta regresiva al próximo cierre ---------------------- */
   function pintarProximoCierre() {
-    const prox = partidosEf()
-      .filter(p => U.abierto(p, resultados[p.id]))
-      .sort((a, b) => a.utc.localeCompare(b.utc))[0];
     const caja = document.getElementById('proximo-cierre');
-    if (!prox) { caja.innerHTML = '<span class="sub">No hay cierres próximos.</span>'; return; }
-    const L = FIXTURE.equipo(prox.local), V = FIXTURE.equipo(prox.visitante);
-    const t = U.cuentaRegresiva(prox.utc);
-    const reloj = t.d > 0 ? `${t.d}d ${String(t.h).padStart(2,'0')}:${String(t.m).padStart(2,'0')}` 
-                          : `${String(t.h).padStart(2,'0')}:${String(t.m).padStart(2,'0')}:${String(t.s).padStart(2,'0')}`;
-                          
-    const alertaPronostico = !misPred[prox.id]
-      ? `<div style="margin-top:8px; padding:4px 10px; background:rgba(224,53,75,0.2); border:1px solid rgba(224,53,75,0.5); border-radius:8px; font-size:12px; color:#fff; font-weight:bold; display:inline-block; animation: latido 1.5s infinite;">⚠️ ¡Ojo! Te falta pronosticar este partido</div>`
-      : '';
+    const todosLosPartidos = partidosEf().sort((a, b) => (a.utc || 'z').localeCompare(b.utc || 'z'));
 
-    caja.innerHTML = `
-      <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--tinta-3)">Próximo cierre · ${L.b} vs ${V.b}</div>
-      <div style="font-family:var(--fuente-marcador);font-size:26px;font-weight:700;color:var(--dorado)">FALTAN ${reloj}</div>
-      ${alertaPronostico}`;
+    // 1. Buscar el próximo partido ABIERTO para pronosticar
+    const proxAbierto = todosLosPartidos.find(p => U.abierto(p, resultados[p.id]) === true);
+
+    if (proxAbierto) {
+      const L = FIXTURE.equipo(proxAbierto.local);
+      const V = FIXTURE.equipo(proxAbierto.visitante);
+      const t = U.cuentaRegresiva(proxAbierto.utc);
+      const reloj = t.d > 0 ? `${t.d}d ${String(t.h).padStart(2, '0')}h`
+                            : `${String(t.h).padStart(2, '0')}:${String(t.m).padStart(2, '0')}:${String(t.s).padStart(2, '0')}`;
+
+      const alertaPronostico = !misPred[proxAbierto.id]
+        ? `<div style="margin-top:8px; padding:4px 10px; background:rgba(224,53,75,0.2); border:1px solid rgba(224,53,75,0.5); border-radius:8px; font-size:12px; color:#fff; font-weight:bold; display:inline-block; animation: latido 1.5s infinite;">⚠️ ¡Ojo! Te falta pronosticar este partido</div>`
+        : '';
+
+      caja.innerHTML = `
+        <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--tinta-3)">Próximo cierre · ${L.b} vs ${V.b}</div>
+        <div style="font-family:var(--fuente-marcador);font-size:26px;font-weight:700;color:var(--dorado)">FALTAN ${reloj}</div>
+        ${alertaPronostico}`;
+      return;
+    }
+
+    // 2. Si no hay abiertos, buscar el próximo partido en el calendario (aunque no tenga equipos)
+    const proxCronologico = todosLosPartidos.find(p => p.utc && new Date(p.utc) > new Date());
+
+    if (proxCronologico) {
+        const L = proxCronologico.local ? FIXTURE.equipo(proxCronologico.local) : null;
+        const V = proxCronologico.visitante ? FIXTURE.equipo(proxCronologico.visitante) : null;
+        const t = U.cuentaRegresiva(proxCronologico.utc);
+        const reloj = t.d > 0 ? `${t.d}d ${String(t.h).padStart(2, '0')}h`
+                              : `${String(t.h).padStart(2, '0')}:${String(t.m).padStart(2, '0')}:${String(t.s).padStart(2, '0')}`;
+        
+        const motivo = (L && V) 
+            ? 'El partido está por comenzar.' 
+            : 'Esperando definición de equipos.';
+
+        caja.innerHTML = `
+            <div style="font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--tinta-3)">Próximo partido · ${L ? L.b : '?'} vs ${V ? V.b : '?'}</div>
+            <div style="font-family:var(--fuente-marcador);font-size:26px;font-weight:700;color:var(--dorado)">EN ${reloj}</div>
+            <div style="margin-top:8px; font-size:12px; color:var(--tinta-2);">${motivo}</div>`;
+        return;
+    }
+
+    // 3. Si no hay partidos futuros, mostrar mensaje final.
+    caja.innerHTML = '<span class="sub">No hay cierres próximos.</span>';
   }
   setInterval(pintarProximoCierre, 1000);
 
@@ -226,39 +221,27 @@ import { CONFIG } from './js/config.js';
       document.getElementById('tab-' + t).classList.toggle('oculto', b.dataset.tab !== t));
     if (b.dataset.tab === 'grupos') {
       pintarGrupos();
-      // Inyectar widgets frescos para garantizar re-inicialización
+      // Cargar posiciones y goleadores desde la API directamente
       document.getElementById('contenedor-widgets-grupos').innerHTML = `
         <div class="widgets-pro-grid">
           <div class="panel panel--relleno widget-pro-box">
             <div class="widget-pro-titulo">📊 Posiciones Oficiales · Mundial 2026</div>
             <p class="sub" style="margin:0 0 12px;font-size:12px;">Clasificación oficial por grupos · API-Football</p>
-            <div id="wg-api-football-standings"
-                 data-host="v3.football.api-sports.io"
-                 data-key="${CONFIG.API_FUTBOL.apiKey}"
-                 data-league="1"
-                 data-season="2026"
-                 data-theme="dark"
-                 data-show-errors="false"
-                 data-show-logos="true">
+            <div id="contenedor-posiciones-api">
               <div style="text-align:center;padding:20px;color:var(--tinta-3);font-size:13px;">⏳ Cargando posiciones...</div>
             </div>
           </div>
           <div class="panel panel--relleno widget-pro-box">
             <div class="widget-pro-titulo">🏆 Goleadores · Mundial 2026</div>
             <p class="sub" style="margin:0 0 12px;font-size:12px;">Clasificación de goleadores · API-Football</p>
-            <div id="wg-api-football-topscorers"
-                 data-host="v3.football.api-sports.io"
-                 data-key="${CONFIG.API_FUTBOL.apiKey}"
-                 data-league="1"
-                 data-season="2026"
-                 data-theme="dark"
-                 data-show-errors="false"
-                 data-show-logos="true">
+            <div id="contenedor-goleadores-api">
               <div style="text-align:center;padding:20px;color:var(--tinta-3);font-size:13px;">⏳ Cargando goleadores...</div>
             </div>
           </div>
         </div>`;
-      window.document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true, cancelable: true }));
+      if (window.GruposApi) {
+        GruposApi.cargarWidgets();
+      }
     }
     if (b.dataset.tab === 'campeon') pintarCampeon();
   });
@@ -292,26 +275,12 @@ import { CONFIG } from './js/config.js';
     let out = lista;
 
     if (filtro === 'hoy') {
-      const partidosDeHoy = lista.filter(p => p.utc && new Date(p.utc).toLocaleDateString('en-CA') === hoyLocal);
-      const todosFinalizados = partidosDeHoy.length > 0 && partidosDeHoy.every(p => (resultados[p.id] || {}).estado === 'finalizado');
-
-      if (todosFinalizados) {
-        const proximoPartido = lista
-          .filter(p => p.utc && new Date(p.utc).getTime() > new Date(hoyLocal + 'T23:59:59Z').getTime())
-          .sort((a, b) => a.utc.localeCompare(b.utc))[0];
-        
-        if (proximoPartido) {
-          const proximaFecha = new Date(proximoPartido.utc).toLocaleDateString('en-CA');
-          out = lista.filter(p => p.utc && new Date(p.utc).toLocaleDateString('en-CA') === proximaFecha);
-        } else {
-          out = partidosDeHoy; // No hay más, mostrar los de hoy
-        }
-      } else {
-        // Comportamiento original: los de hoy + los que estén en vivo
-        out = lista.filter(p =>
-          (p.utc && new Date(p.utc).toLocaleDateString('en-CA') === hoyLocal) ||
-          (resultados[p.id] || {}).estado === 'en_juego');
-      }
+      out = lista.filter(p => {
+        const est = (resultados[p.id] || {}).estado;
+        const esHoy = p.utc && new Date(p.utc).toLocaleDateString('en-CA') === hoyLocal;
+        // Mostrar partidos de hoy, o cualquiera que esté en vivo o iniciando
+        return esHoy || est === 'en_juego' || est === 'iniciando';
+      });
     } else if (filtro === 'pendientes') {
       out = out.filter(p => U.abierto(p, resultados[p.id]) && !misPred[p.id]);
     } else if (/^j[123]$/.test(filtro)) {
@@ -336,6 +305,7 @@ import { CONFIG } from './js/config.js';
 
     /* etiqueta de estado */
     let badge = '';
+    if (est === 'iniciando') badge = `<span class="etiqueta etiqueta--vivo">INICIANDO...</span>`;
     if (est === 'en_juego')  badge = `<span class="etiqueta etiqueta--vivo">● EN VIVO ${res.minuto ? res.minuto + '′' : ''}</span>`;
     if (est === 'finalizado') badge = `<span class="etiqueta etiqueta--fin">FINAL</span>`;
     if (est === 'cerrado')    badge = `<span class="etiqueta">CERRADO</span>`;
@@ -385,14 +355,31 @@ import { CONFIG } from './js/config.js';
       const evL = eventos.filter(e => e.eq === p.local).sort((a,b) => a.m - b.m);
       const evV = eventos.filter(e => e.eq === p.visitante).sort((a,b) => a.m - b.m);
 
-      const evIcon = t => t==='gol'?'⚽':t==='roja'?'🟥':t==='amarilla'?'🟨':'🔄';
+      // Emoji para subtipo de gol
+      const _golIcon = (e) => {
+        if (e.t !== 'gol') return '';
+        if (e.subtipo === 'penal') return ' ⚪';
+        if (e.subtipo === 'autogol') return ' 🚫';
+        if (e.subtipo === 'tiro_libre') return ' 🥾';
+        if (e.subtipo === 'cabeza') return ' 🤕';
+        return '';
+      };
+      const _golLabel = (e) => {
+        if (e.t !== 'gol') return '';
+        if (e.subtipo === 'penal') return ' (P)';
+        if (e.subtipo === 'autogol') return ' (AG)';
+        if (e.subtipo === 'tiro_libre') return ' (TL)';
+        if (e.subtipo === 'cabeza') return ' (CAB)';
+        return '';
+      };
+      const evIcon = t => t==='gol'?'⚽':t==='roja'?'🟥':t==='amarilla'?'🟨':t==='gol_anulado'?'⚽❌':'🔄';
       const minStr = e => `${e.m}${e.x ? '+' + e.x : ''}′`;
       const fmtL = e => e.t === 'cambio'
         ? `<div class="evento"><span class="evento-icono">🔄</span><span class="evento-jugador"><span class="ev-sale">${U.esc(e.j)}</span> <span class="ev-flecha">→</span> <span class="ev-entra">${U.esc(e.a||'')}</span></span><span class="evento-min">${minStr(e)}</span></div>`
-        : `<div class="evento"><span class="evento-icono">${evIcon(e.t)}</span><span class="evento-jugador">${U.esc(e.j)}</span><span class="evento-min">${minStr(e)}</span></div>`;
+        : `<div class="evento ${e.t === 'gol_anulado' ? 'evento--anulado' : ''}"><span class="evento-icono">${evIcon(e.t)}${_golIcon(e)}</span><span class="evento-jugador">${U.esc(e.j)}<span class="ev-subtipo">${_golLabel(e)}</span></span><span class="evento-min">${minStr(e)}</span></div>`;
       const fmtV = e => e.t === 'cambio'
         ? `<div class="evento evento--v"><span class="evento-min">${minStr(e)}</span><span class="evento-jugador"><span class="ev-entra">${U.esc(e.a||'')}</span> <span class="ev-flecha">←</span> <span class="ev-sale">${U.esc(e.j)}</span></span><span class="evento-icono">🔄</span></div>`
-        : `<div class="evento evento--v"><span class="evento-min">${minStr(e)}</span><span class="evento-jugador">${U.esc(e.j)}</span><span class="evento-icono">${evIcon(e.t)}</span></div>`;
+        : `<div class="evento evento--v ${e.t === 'gol_anulado' ? 'evento--anulado' : ''}"><span class="evento-min">${minStr(e)}</span><span class="evento-jugador">${U.esc(e.j)}<span class="ev-subtipo">${_golLabel(e)}</span></span><span class="evento-icono">${evIcon(e.t)}${_golIcon(e)}</span></div>`;
 
       const tieneEvs = evL.length > 0 || evV.length > 0;
       const eventosHTML = (tieneEvs || esDescanso) ? `
@@ -401,6 +388,14 @@ import { CONFIG } from './js/config.js';
           <div class="eventos-col">${evL.map(fmtL).join('')}</div>
           <div class="eventos-col eventos-col--v">${evV.map(fmtV).join('')}</div>
         </div>` : '';
+
+      // NUEVO: Widget de estadísticas en vivo
+      const tieneStats = res?.tarjetas && Object.keys(res.tarjetas).length > 0;
+      const statsWidgetHTML = tieneStats
+        ? `<div class="stats-en-vivo" style="padding: 16px 0 8px; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 16px;">
+            <h3 class="subtitulo-polla" style="margin: 0 16px 10px; padding: 0; font-size: 14px;">📊 Estadísticas en Vivo</h3>
+            ${renderMatchStats(p, res)}
+          </div>` : '';
 
       encabezado = `
         <div class="vivo-encabezado">
@@ -428,6 +423,7 @@ import { CONFIG } from './js/config.js';
           </div>
           ${(p.estadio || p.sede) ? `<div class="vivo-estadio">🏟 ${U.esc(p.estadio || p.sede)}</div>` : ''}
           ${eventosHTML}
+          ${statsWidgetHTML}
         </div>
       `;
     } else {
@@ -484,7 +480,7 @@ import { CONFIG } from './js/config.js';
     let zona;
     if (sinEquipos) {
       zona = `<div class="pronostico"><span class="pronostico__guardado">Los equipos se definen al cerrar la fase anterior.</span></div>`;
-    } else if (U.abierto(p, res)) {
+    } else if (est === 'en_juego' || est === 'finalizado') {
       const gl = pred ? pred.gl : '', gv = pred ? pred.gv : '';
       zona = `
         <div class="pronostico pronostico--filas" data-pid="${p.id}">
@@ -511,8 +507,12 @@ import { CONFIG } from './js/config.js';
         </div>`;
     } else {
       const cal = Puntos.calificar(pred, res, p.fase);
+      const estadoTexto = est === 'aplazado' ? '⏸️ Partido aplazado' : est === 'cerrado' ? '🔒 Partido cerrado' : est === 'finalizado' ? '🏁 Partido finalizado' : '';
+      const motivoAplazamiento = est === 'aplazado' && res?.motivoAplazamiento ? `<span class="pronostico__guardado" style="font-size:11px;color:var(--tinta-2)">Motivo: ${U.esc(res.motivoAplazamiento)}</span>` : '';
       zona = `
         <div class="pronostico">
+          ${estadoTexto ? `<span class="pronostico__guardado" style="color:var(--dorado)">${estadoTexto}</span>` : ''}
+          ${motivoAplazamiento}
           ${pred
             ? `<span class="pronostico__guardado">Tu pronóstico: <b>${pred.gl}–${pred.gv}</b></span>`
             : `<span class="pronostico__guardado">No alcanzaste a pronosticar 😅</span>`}
@@ -520,22 +520,125 @@ import { CONFIG } from './js/config.js';
         </div>`;
     }
 
-    const tieneTarjetas = res?.tarjetas && Object.keys(res.tarjetas).length > 0;
-    const statsInline = (est === 'en_juego' || est === 'finalizado') && tieneTarjetas
-      ? `<div class="stats-btn-row">
-          <button class="boton boton--fantasma boton--mini" data-ver-stats="${p.id}" type="button">📊 Estadísticas del partido</button>
+    // NUEVO LAYOUT SPLIT: dividir en dos columnas
+    const contenidoSplit = `
+      <details class="partido-detalles">
+        <summary>Ver análisis y estadísticas del partido</summary>
+        <div class="polla-layout-split" style="padding-top: 10px;">
+          <!-- COLUMNA IZQUIERDA: Datos oficiales del partido -->
+          <div class="columna-split-izquierda">
+            <h3 class="subtitulo-polla" style="margin-bottom: 10px;">📋 Datos Oficiales del Partido (API)</h3>
+            ${renderProStats(p, res)}
+          </div>
+
+          <!-- COLUMNA DERECHA: Datos de la polla y comunidad -->
+          <div class="columna-split-derecha">
+            <h3 class="subtitulo-polla" style="margin-bottom: 10px;">🔮 Predicciones de la Comunidad</h3>
+            ${renderStatsCompacto(p)}
+          </div>
         </div>
-        <div id="stats-inline-${p.id}" class="match-stats-panel oculto">${renderMatchStats(p, res)}</div>`
-      : '';
+      </details>
+    `;
 
     return `
       <article class="partido ${est === 'en_juego' ? 'partido--vivo' : ''}" id="p-${p.id}">
         ${encabezado}
         ${zona}
-        ${renderProStats(p, res)}
-        ${statsInline}
-        ${renderStats(p)}
+        ${contenidoSplit}
       </article>`;
+  }
+
+  function renderStatsCompacto(p) {
+    const pid = p.id;
+    const preds = predsByPartido[pid] || [];
+    const res = resultados[pid] || {};
+    const pred = misPred[pid];
+
+    // Bloque de pronóstico del usuario
+    let pronosticoUsuario = '';
+    if (pred) {
+      pronosticoUsuario = `
+        <div class="tarjeta-polla-info pronostico-usuario-box">
+          <span>Tu pronóstico: <strong>${pred.gl}–${pred.gv}</strong></span>
+        </div>`;
+    }
+
+    // Bloque de IA compacto
+    let iaCompacto = '';
+    const analisisIA = res?.analisisIA;
+    if (analisisIA && window.IA && typeof window.IA.mdAHtml === 'function') {
+      iaCompacto = `
+        <div class="tarjeta-polla-info ia-analisis-box">
+          <div class="ia-header">
+            <span class="ia-badge">🤖 IA</span>
+            <strong>Análisis Predictivo</strong>
+          </div>
+          <div class="ia-cuerpo">
+            <p>Nivel de Confianza: <span class="confianza-texto">Media</span></p>
+            <p class="ia-prediccion-texto">💡 Tendencia Pro: Análisis generado por IA disponible.</p>
+          </div>
+        </div>`;
+    } else if (window.IA?.disponible()) {
+      iaCompacto = `
+        <div class="tarjeta-polla-info ia-analisis-box" style="border-left-style: dashed;">
+          <div class="ia-header">
+            <span class="ia-badge">🤖 IA</span>
+            <strong>Análisis Predictivo</strong>
+          </div>
+          <div class="ia-cuerpo">
+            <button class="boton boton--mini" data-generar-ia="${p.id}" type="button">🤖 Generar análisis</button>
+          </div>
+        </div>`;
+    }
+
+    // Bloque de comunidad
+    let comunidad = '';
+    if (preds.length > 0) {
+      const abierto = U.abierto(p, res) === true;
+      if (abierto) {
+        comunidad = `
+          <div class="tarjeta-polla-info">
+            <div class="comunidad-header">
+              <h3>📊 ¿Qué opina la mayoría?</h3>
+              <span class="badge-votos">Ver ${preds.length} pron.</span>
+            </div>
+            <div style="text-align: center; padding: 10px 0; font-size: 12px; color: var(--tinta-3);">
+              Las predicciones se revelan al iniciar el partido.
+            </div>
+          </div>`;
+      } else {
+      let local = 0, draw = 0, away = 0, processed = 0;
+      const exactCounts = {};
+      let masDeDos = 0, ambosAnotan = 0;
+
+      for (const pr of preds) {
+        const gl = Number(pr.gl), gv = Number(pr.gv);
+        if (isNaN(gl) || isNaN(gv)) continue;
+        processed++;
+        if (gl > gv) local++; else if (gl === gv) draw++; else away++;
+        const key = `${gl} – ${gv}`; exactCounts[key] = (exactCounts[key] || 0) + 1;
+        if (gl + gv >= 3) masDeDos++;
+        if (gl > 0 && gv > 0) ambosAnotan++;
+      }
+      const total = Math.max(1, local + draw + away);
+      const pct = n => Math.round((n / total) * 100);
+
+      comunidad = `
+        <div class="tarjeta-polla-info">
+          <div class="comunidad-header">
+            <h3>📊 ¿Qué opina la mayoría?</h3>
+            <span class="badge-votos">Ver ${processed} pron.</span>
+          </div>
+          <div class="barra-progreso-comunidad">
+            <div class="progreso-local" style="width: ${pct(local)}%;">Local: ${pct(local)}%</div>
+            <div class="progreso-empate" style="width: ${pct(draw)}%;">Empate: ${pct(draw)}%</div>
+            <div class="progreso-visita" style="width: ${pct(away)}%;">Visitante: ${pct(away)}%</div>
+          </div>
+        </div>`;
+    }
+    }
+
+    return `${pronosticoUsuario}${iaCompacto}${comunidad}`;
   }
 
   function renderStats(p) {
@@ -543,6 +646,19 @@ import { CONFIG } from './js/config.js';
     const preds = predsByPartido[pid] || [];
     if (!preds.length) return `<div class="partido__stats" style="text-align:center; padding: 12px; color: var(--tinta-3); font-size: 12.5px; background: rgba(0,0,0,0.15); border-radius: 10px; margin-top: 14px; border: 1px dashed rgba(255,255,255,0.1);">Aún no hay pronósticos para este partido. ¡Sé el primero!</div>`;
     
+    const abierto = U.abierto(p, resultados[pid]) === true;
+    if (abierto) {
+        return `<div class="partido__stats" style="background: rgba(0,0,0,0.15); padding: 14px; border-radius: 10px; margin-top: 14px; border: 1px solid rgba(255,255,255,0.05);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <strong style="font-size: 13px; color: var(--tinta-2); letter-spacing: 0.5px;">📊 ¿Qué opina la mayoría?</strong>
+                <button class="boton boton--fantasma boton--mini" data-ver-prons="${pid}" type="button" style="padding: 4px 10px; font-size: 11.5px; z-index: 2; position: relative;">👀 Ver ${preds.length} pron.</button>
+            </div>
+            <div style="text-align: center; padding: 10px; font-size: 12px; color: var(--tinta-3);">
+                Las predicciones de la comunidad se revelarán cuando comience el partido.
+            </div>
+        </div>`;
+    }
+
     let local = 0, draw = 0, away = 0, sumGl = 0, sumGv = 0, processed = 0;
     const exactCounts = {};
     let masDeDos = 0, ambosAnotan = 0;
@@ -562,7 +678,6 @@ import { CONFIG } from './js/config.js';
     const pct = n => Math.round((n / total) * 100);
     const avgGl = processed ? Math.round(sumGl / processed) : 0;
     const avgGv = processed ? Math.round(sumGv / processed) : 0;
-    const mostExact = Object.entries(exactCounts).sort((a, b) => b[1] - a[1])[0] || ['—', 0];
     
     const pctMasDeDos = pct(masDeDos);
     const pctAmbosAnotan = pct(ambosAnotan);
@@ -595,11 +710,6 @@ import { CONFIG } from './js/config.js';
         <span>🤝 Empate: <b>${pct(draw)}%</b></span>
         <span style="color: var(--azul-claro);">✈ ${U.esc(nomV)}: <b>${pct(away)}%</b></span>
       </div>
-      <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
-        <div style="font-size: 12.5px; color: var(--tinta-2); background: rgba(0,0,0,0.2); padding: 8px 10px; border-radius: 6px; display: inline-block;">
-          Marcador popular: <b style="color: var(--dorado); font-family: var(--fuente-marcador); font-size: 15px; margin: 0 4px;">${mostExact[0]}</b>
-        </div>
-      </div>
       <div style="font-size: 12px; color: var(--tinta-2); border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 10px;">
         ${datoPro}
       </div>
@@ -608,203 +718,176 @@ import { CONFIG } from './js/config.js';
 
   /* --- ESTADÍSTICAS PRO (predicción IA + alineaciones) --------- */
   function renderProStats(p, res) {
-    if (!p.local || !p.visitante) return '';
-
-    const pred = res?.prediccion;
     const alin = res?.alineacion;
-    const analisisIA = res?.analisisIA;
-
-    // Si tenemos un análisis de IA, lo mostramos con prioridad.
-    if (analisisIA && window.IA && typeof window.IA.mdAHtml === 'function') {
-      return `<details class="ia-panel collapsible-panel" open>
-        <summary>
-          <div class="ia-badge">🤖 IA</div>
-          <div class="ia-panel__info">
-            <div class="ia-panel__titulo">Análisis del Partido</div>
-            <div class="ia-panel__sub">Análisis generado por IA</div>
-          </div>
-          <button class="boton boton--fantasma boton--mini" data-generar-ia="${p.id}" type="button">🔄 Actualizar</button>
-        </summary>
-        <div class="ia-analisis" style="border: none; background: transparent; padding: 0; margin-top: 10px; font-size: 13.5px; line-height: 1.7;">
-            ${IA.mdAHtml(analisisIA)}
-        </div>
-      </details>`;
+    const stats = res?.tarjetas;
+    const eventos = res?.eventos;
+    const apiFixtureId = res?.apiId;
+    const pred = res?.prediccion;
+    const est = U.estadoPartido(p, res);
+    
+    // Si está en vivo y hay widget, es la mejor experiencia.
+    if (apiFixtureId && est === 'en_juego') {
+      return `
+        <api-sports-widget
+          data-type="game"
+          data-game-id="${apiFixtureId}"
+          data-refresh="15"
+          style="margin-bottom: 16px;">
+        </api-sports-widget>`;
     }
 
-    // Si no hay análisis de IA pero la función está disponible, mostrar el botón para generar.
-    if (window.IA?.disponible()) {
-        return `<div class="ia-panel" style="background:transparent; border-style:dashed; text-align:center; padding: 20px;">
-            <p style="margin:0 0 10px; font-size:13px; color:var(--tinta-2)">¿Quieres un análisis detallado de este partido?</p>
-            <button class="boton boton--mini" data-generar-ia="${p.id}" type="button">🤖 Generar con IA</button>
-        </div>`;
-    }
-
-    if (!pred && !alin) return ''; // Si no hay IA ni datos de predicción/alineación, no mostrar nada.
-    const L = FIXTURE.equipo(p.local), V = FIXTURE.equipo(p.visitante);
-    let html = '';
-
+    // Para cualquier otro caso (programado, o en vivo sin widget),
+    // construir la vista manual con los datos que tengamos.
+    let fallbackHtml = '';
     if (pred) {
-      const pn = s => Math.min(100, Math.max(0, parseInt(s) || 0));
-      const pl = pn(pred.pct.l), pe = pn(pred.pct.e), pv = pn(pred.pct.v);
-      const maxPct = Math.max(pl, pe, pv);
-      const spread = maxPct - (pl + pe + pv - maxPct) / 2;
-      const confianza = spread > 25 ? { txt: 'Confianza Alta', col: '#22c55e' }
-                      : spread > 12 ? { txt: 'Confianza Media', col: 'var(--dorado)' }
-                      :               { txt: 'Confianza Baja',  col: 'var(--tinta-3)' };
-      const equilibrado = spread <= 6;
-      const gIdx = pl >= pe && pl >= pv ? 0 : pv > pe ? 2 : 1;
-      const favNom  = [L.n, 'Empate', V.n][gIdx];
-      const favBan  = [L.b, '🤝', V.b][gIdx];
-      const favPct  = [pred.pct.l, pred.pct.e, pred.pct.v][gIdx];
-      const favPctN = pn(favPct);
-
-      /* Goles esperados */
-      const glExp = parseFloat(String(pred.goles.l).replace(',','.')) || 0;
-      const gvExp = parseFloat(String(pred.goles.v).replace(',','.')) || 0;
-      const totalExp = glExp + gvExp;
-
-      /* Texto de análisis generado */
-      let analisis = '';
-      if (equilibrado) {
-        analisis = `El modelo no encuentra un favorito claro — las probabilidades están casi igualadas entre los tres resultados. Cualquier marcador es posible y el partido se define por detalles.`;
-      } else if (favPctN >= 60) {
-        analisis = `${favBan} <b>${U.esc(favNom)}</b> aparece como favorito sólido con ${favPct} de probabilidades según el modelo. La diferencia de nivel es marcada.`;
-      } else if (favPctN >= 45) {
-        analisis = `Ligera ventaja para ${favBan} <b>${U.esc(favNom)}</b> (${favPct}), pero el otro equipo tiene opciones reales. Un partido disputado.`;
-      } else {
-        analisis = `Pronóstico dividido: ${favBan} <b>${U.esc(favNom)}</b> lleva una mínima ventaja (${favPct}) pero el modelo ve el resultado muy abierto.`;
-      }
-      if (totalExp >= 2.8) {
-        analisis += ` El modelo estima <b>${totalExp.toFixed(1)} goles en total</b> — partido de ataque probable.`;
-      } else if (totalExp <= 1.4) {
-        analisis += ` Solo <b>${totalExp.toFixed(1)} goles estimados</b> — se espera un juego cerrado y defensivo.`;
-      } else {
-        analisis += ` Marcador más probable según el modelo: <b>${pred.goles.l} – ${pred.goles.v}</b>.`;
-      }
-
-      /* Etiquetas contextuales */
-      const tags = [];
-      if (equilibrado)        tags.push(`<span class="ia-tag ia-tag--gray">⚖️ Gran equilibrio</span>`);
-      else if (favPctN >= 60) tags.push(`<span class="ia-tag ia-tag--blue">⭐ Favorito claro</span>`);
-      if (totalExp >= 2.8)    tags.push(`<span class="ia-tag ia-tag--green">🔥 Partido abierto</span>`);
-      else if (totalExp <= 1.4) tags.push(`<span class="ia-tag ia-tag--gray">🛡️ Juego defensivo</span>`);
-      if (pred.linea) {
-        const ln = parseFloat(pred.linea);
-        tags.push(`<span class="ia-tag ia-tag--gold">${ln < 0 ? 'Menos de' : 'Más de'} ${Math.abs(ln)} goles</span>`);
-      }
-
-      html += `<details class="ia-panel collapsible-panel">
-        <summary>
-            <div class="ia-badge">🤖 IA</div>
-            <div class="ia-panel__info">
-                <div class="ia-panel__titulo">Análisis del Partido</div>
-                <div class="ia-panel__sub">Modelo predictivo · API-Football</div>
-            </div>
-            <div class="ia-confianza" style="color:${confianza.col}">${confianza.txt}</div>
-        </summary>
-        <div>
-          <div class="ia-analisis">${analisis}</div>
-          ${tags.length ? `<div class="ia-tags">${tags.join('')}</div>` : ''}
-          ${pred.consejo ? `<div class="ia-consejo">"${U.esc(pred.consejo)}"</div>` : ''}
-
-          ${!equilibrado ? `<div class="ia-favorito">
-            <span class="ia-fav__label">Favorito</span>
-            <span class="ia-fav__valor">${favBan} <b>${U.esc(favNom)}</b> · ${favPct}</span>
-          </div>` : ''}
-
-          <div class="ia-barras">
-            <div class="ia-fila${pl >= pe && pl >= pv && !equilibrado ? ' ia-fila--top' : ''}">
-              <span class="ia-team">${L.b} <span class="ia-nom">${U.esc((L.n||'').split(' ')[0])}</span></span>
-              <div class="ia-bar-wrap"><div class="ia-bar-fill ia-bar-fill--l" style="width:${pl}%"></div></div>
-              <span class="ia-pct">${pred.pct.l}</span>
-            </div>
-            <div class="ia-fila${pe > pl && pe > pv ? ' ia-fila--top' : ''}">
-              <span class="ia-team">🤝 <span class="ia-nom">Empate</span></span>
-              <div class="ia-bar-wrap"><div class="ia-bar-fill ia-bar-fill--e" style="width:${pe}%"></div></div>
-              <span class="ia-pct">${pred.pct.e}</span>
-            </div>
-            <div class="ia-fila${pv > pl && pv >= pe && !equilibrado ? ' ia-fila--top' : ''}">
-              <span class="ia-team">${V.b} <span class="ia-nom">${U.esc((V.n||'').split(' ')[0])}</span></span>
-              <div class="ia-bar-wrap"><div class="ia-bar-fill ia-bar-fill--v" style="width:${pv}%"></div></div>
-              <span class="ia-pct">${pred.pct.v}</span>
-            </div>
-          </div>
-
-          <div class="ia-footer">
-            <div class="ia-goles-esp">
-              <span>⚽</span>
-              <div>
-                <div class="ia-goles-val">${pred.goles.l} &minus; ${pred.goles.v}</div>
-                <div class="ia-goles-lab">Goles esperados</div>
-              </div>
-            </div>
-          </div>
-
-          ${pred.h2h ? (() => {
-            const h = pred.h2h;
-            const tot = h.w1 + h.empate + h.w2;
-            const marcadores = h.recientes.map(r => `${r.gl}–${r.gv}`).join(' · ');
-            return `<div class="ia-h2h">
-              <div class="ia-h2h__titulo">🕰 Historial (últimos ${tot})</div>
-              <div class="ia-h2h__barras">
-                <div class="ia-h2h__bloque" style="flex:${h.w1||0.1}">
-                  <div class="ia-h2h__num">${h.w1}</div>
-                  <div class="ia-h2h__bar" style="background:var(--verde-claro)"></div>
-                  <div class="ia-h2h__lab">${U.esc((L.n||'').split(' ')[0])}</div>
-                </div>
-                <div class="ia-h2h__bloque" style="flex:${h.empate||0.1}">
-                  <div class="ia-h2h__num">${h.empate}</div>
-                  <div class="ia-h2h__bar" style="background:var(--tinta-3)"></div>
-                  <div class="ia-h2h__lab">Empate</div>
-                </div>
-                <div class="ia-h2h__bloque" style="flex:${h.w2||0.1}">
-                  <div class="ia-h2h__num">${h.w2}</div>
-                  <div class="ia-h2h__bar" style="background:var(--azul-claro)"></div>
-                  <div class="ia-h2h__lab">${U.esc((V.n||'').split(' ')[0])}</div>
-                </div>
-              </div>
-              <div class="ia-h2h__marcadores">Resultados: ${marcadores}</div>
-            </div>`;
-          })() : ''}
-
-          ${(() => {
-            const lesL = pred.lesiones?.[p.local]    || [];
-            const lesV = pred.lesiones?.[p.visitante] || [];
-            if (!lesL.length && !lesV.length) return '';
-            const fmt = (arr, ban) => arr.length
-              ? `<div class="ia-les__equipo">${ban} ${arr.map(j => `<span class="ia-les__jug" title="${U.esc(j.razon)}">${U.esc(j.nombre)}</span>`).join('')}</div>`
-              : '';
-            return `<div class="ia-lesiones">
-              <div class="ia-h2h__titulo">🚑 Bajas confirmadas</div>
-              ${fmt(lesL, L.b)}${fmt(lesV, V.b)}
-            </div>`;
-          })()}
-        </div>
-      </details>`;
+      fallbackHtml += renderPrediccionAPI(pred, p);
+    }
+    if (alin && alin.length) {
+      fallbackHtml += renderAlineaciones(alin, p);
+    }
+    if (stats && (stats[p.local] || stats[p.visitante])) {
+      fallbackHtml += renderEstadisticas(stats, p);
+    }
+    if (eventos && eventos.length) {
+      fallbackHtml += renderIncidencias(eventos, p);
     }
 
-    if (alin && alin.length === 2) {
-      const [eqL, eqV] = alin[0].cod === p.local ? [alin[0], alin[1]] : [alin[1], alin[0]];
-      const posI = {G:'🧤',D:'🛡',M:'⚙️',F:'⚡'};
-      const jug = (eq, izq) => eq.xi.map(j =>
-        `<div class="lineup-j ${izq ? '' : 'lineup-j--v'}"><span class="lineup-num">${j.num}</span><span class="lineup-pos">${posI[j.pos]||''}</span><span>${U.esc(j.n)}</span></div>`
-      ).join('');
-      html += `<details class="pro-panel pro-panel--lineup collapsible-panel">
-        <summary class="pro-header">👕 Alineaciones Confirmadas</summary>
-        <div class="lineup-grid">
-          <div class="lineup-col">
-            <div class="lineup-form">${L.b} ${U.esc(eqL.f)}</div>
-            ${jug(eqL, true)}
+    if (fallbackHtml) {
+      return fallbackHtml;
+    }
+
+    // Si no hay ni widget ni datos para fallback, mostrar mensaje.
+    return '<p style="font-size:12px; color:var(--tinta-3); text-align:center; padding: 10px 0;">Datos del partido no disponibles aún.</p>';
+  }
+
+  /* --- VISUALIZACIONES PERSONALIZADAS DE LA API --------------- */
+  function renderAlineaciones(alin, p) {
+    if (!alin || alin.length !== 2) return '';
+    const [eqL, eqV] = alin[0].cod === p.local ? [alin[0], alin[1]] : [alin[1], alin[0]];
+    const L = FIXTURE.equipo(p.local);
+    const V = FIXTURE.equipo(p.visitante);
+    const posI = {G:'🧤',D:'🛡',M:'⚙️',F:'⚡'};
+    
+    const jug = (eq, izq) => eq.xi.map(j =>
+      `<div class="lineup-j ${izq ? '' : 'lineup-j--v'}"><span class="lineup-num">${j.num}</span><span class="lineup-pos">${posI[j.pos]||''}</span><span>${U.esc(j.n)}</span></div>`
+    ).join('');
+    
+    return `<div class="tarjeta-polla-info">
+      <h3 class="subtitulo-polla">👕 Alineaciones Confirmadas</h3>
+      <div class="lineup-grid">
+        <div class="lineup-col">
+          <div class="lineup-form">${L.b} ${U.esc(eqL.f)}</div>
+          ${jug(eqL, true)}
+        </div>
+        <div class="lineup-sep"></div>
+        <div class="lineup-col lineup-col--v">
+          <div class="lineup-form">${U.esc(eqV.f)} ${V.b}</div>
+          ${jug(eqV, false)}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function renderEstadisticas(stats, p) {
+    const stL = stats[p.local] || {};
+    const stV = stats[p.visitante] || {};
+    const L = FIXTURE.equipo(p.local);
+    const V = FIXTURE.equipo(p.visitante);
+    
+    const barra = (label, valL, valV, max, suffix = '') => {
+      const pctL = max ? (valL / max) * 100 : 50;
+      const pctV = max ? (valV / max) * 100 : 50;
+      return `
+        <div style="margin-bottom: 12px;">
+          <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+            <span style="color:${valL > valV ? 'var(--verde-claro)' : 'var(--tinta-2)'}">${valL}${suffix}</span>
+            <span style="color:var(--tinta-3); font-size:11px;">${label}</span>
+            <span style="color:${valV > valL ? 'var(--azul-claro)' : 'var(--tinta-2)'}">${valV}${suffix}</span>
           </div>
-          <div class="lineup-sep"></div>
-          <div class="lineup-col lineup-col--v">
-            <div class="lineup-form">${U.esc(eqV.f)} ${V.b}</div>
-            ${jug(eqV, false)}
+          <div style="display:flex; gap:4px; height:8px;">
+            <div style="flex:${pctL}; background:${valL > valV ? 'var(--verde-claro)' : 'rgba(255,255,255,0.2)'}; border-radius:4px 0 0 4px;"></div>
+            <div style="flex:${pctV}; background:${valV > valL ? 'var(--azul-claro)' : 'rgba(255,255,255,0.2)'}; border-radius:0 4px 4px 0;"></div>
+          </div>
+        </div>`;
+    };
+    
+    return `<div class="tarjeta-polla-info">
+      <h3 class="subtitulo-polla">📊 Estadísticas en Vivo</h3>
+      ${barra('Posesión', stL.posesion || 0, stV.posesion || 0, 100, '%')}
+      ${barra('Tiros al arco', stL.tirosArc || 0, stV.tirosArc || 0, Math.max(stL.tirosArc, stV.tirosArc, 1))}
+      ${barra('Tiros totales', stL.tirosTot || 0, stV.tirosTot || 0, Math.max(stL.tirosTot, stV.tirosTot, 1))}
+      ${barra('Corners', stL.corners || 0, stV.corners || 0, Math.max(stL.corners, stV.corners, 1))}
+      ${barra('Faltas', stL.faltas || 0, stV.faltas || 0, Math.max(stL.faltas, stV.faltas, 1))}
+    </div>`;
+  }
+
+  function renderIncidencias(eventos, p) {
+    if (!eventos || !eventos.length) return '';
+
+    const evL = eventos.filter(e => e.eq === p.local).sort((a,b) => a.m - b.m);
+    const evV = eventos.filter(e => e.eq === p.visitante).sort((a,b) => a.m - b.m);
+
+    if (!evL.length && !evV.length) return '';
+
+    const evIcon = t => t==='gol'?'⚽':t==='roja'?'🟥':t==='amarilla'?'🟨':t==='gol_anulado'?'⚽❌':'🔄';
+    const minStr = e => `${e.m}${e.x ? '+' + e.x : ''}′`;
+
+    const fmt = (e, esVisitante) => {
+      const claseAnulado = e.t === 'gol_anulado' ? 'evento--anulado' : '';
+      const jugador = `<span class="evento-jugador">${U.esc(e.j)}</span>`;
+      const icono = `<span class="evento-icono">${evIcon(e.t)}</span>`;
+      const minuto = `<span class="evento-min">${minStr(e)}</span>`;
+
+      return `<div class="evento ${esVisitante ? 'evento--v' : ''} ${claseAnulado}" style="font-size: 12px; padding: 4px 0;">
+          ${esVisitante ? minuto + jugador + icono : icono + jugador + minuto}
+      </div>`;
+    };
+      
+    return `<div class="tarjeta-polla-info">
+      <h3 class="subtitulo-polla">⚡ Incidencias en Vivo</h3>
+      <div class="lineup-grid" style="gap: 12px; margin-top: 10px;">
+        <div class="lineup-col">
+          ${evL.map(e => fmt(e, false)).join('')}
+        </div>
+        <div class="lineup-sep"></div>
+        <div class="lineup-col lineup-col--v">
+          ${evV.map(e => fmt(e, true)).join('')}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function renderPrediccionAPI(pred, p) {
+    const L = FIXTURE.equipo(p.local);
+    const V = FIXTURE.equipo(p.visitante);
+    const pn = s => Math.min(100, Math.max(0, parseInt(s) || 0));
+    const pl = pn(pred.pct.l), pe = pn(pred.pct.e), pv = pn(pred.pct.v);
+    
+    return `<div class="tarjeta-polla-info ia-analisis-box">
+      <div class="ia-header">
+        <span class="ia-badge">🤖 API</span>
+        <strong>Predicción del Modelo</strong>
+      </div>
+      <div class="ia-cuerpo">
+        <div style="display:flex; gap:8px; margin-bottom:12px;">
+          <div style="flex:1; text-align:center; padding:8px; background:rgba(34,197,94,.1); border-radius:6px;">
+            <div style="font-size:11px; color:var(--tinta-3);">${L.b}</div>
+            <div style="font-size:18px; font-weight:bold; color:var(--verde-claro);">${pl}%</div>
+          </div>
+          <div style="flex:1; text-align:center; padding:8px; background:rgba(148,163,184,.1); border-radius:6px;">
+            <div style="font-size:11px; color:var(--tinta-3);">Empate</div>
+            <div style="font-size:18px; font-weight:bold; color:var(--tinta-2);">${pe}%</div>
+          </div>
+          <div style="flex:1; text-align:center; padding:8px; background:rgba(59,130,246,.1); border-radius:6px;">
+            <div style="font-size:11px; color:var(--tinta-3);">${V.b}</div>
+            <div style="font-size:18px; font-weight:bold; color:var(--azul-claro);">${pv}%</div>
           </div>
         </div>
-      </details>`;
-    }
-    return html;
+        <p class="ia-prediccion-texto">
+          Marcador esperado: <strong style="color:var(--dorado); font-family:var(--fuente-marcador);">${pred.goles.l} – ${pred.goles.v}</strong>
+        </p>
+      </div>
+    </div>`;
   }
 
   /* --- ESTADÍSTICAS DEL PARTIDO (comparativa) ------------------- */
@@ -917,17 +1000,25 @@ import { CONFIG } from './js/config.js';
   }
 
   function pintarPartidos() {
-    const lista = filtrar(partidosEf());
     const prioridad = p => {
       const est = U.estadoPartido(p, resultados[p.id]);
       return est === 'en_juego' ? 0 : est === 'finalizado' ? 2 : 1;
     };
+    const cont = document.getElementById('lista-partidos');
+
+    // Guardar el estado de los <details> abiertos para que no se cierren al refrescar
+    const abiertos = new Set();
+    cont.querySelectorAll('details.partido-detalles[open]').forEach(det => {
+        const partidoId = det.closest('.partido')?.id;
+        if (partidoId) abiertos.add(partidoId);
+    });
+
+    const lista = filtrar(partidosEf());
     lista.sort((a, b) => {
       const pa = prioridad(a), pb = prioridad(b);
       if (pa !== pb) return pa - pb;
       return (a.utc || a.fecha + 'T23').localeCompare(b.utc || b.fecha + 'T23');
     });
-    const cont = document.getElementById('lista-partidos');
     if (!lista.length) {
       cont.innerHTML = `<div class="aviso">No hay partidos con este filtro. Prueba con otro 👆</div>`;
       return;
@@ -947,6 +1038,15 @@ import { CONFIG } from './js/config.js';
       html += cardPartido(p);
     }
     cont.innerHTML = html;
+
+    // Restaurar el estado de los <details> que estaban abiertos
+    if (abiertos.size > 0) {
+        abiertos.forEach(partidoId => {
+            const partidoEl = cont.querySelector(`#${partidoId}`);
+            const detailsEl = partidoEl?.querySelector('details.partido-detalles');
+            if (detailsEl) detailsEl.open = true;
+        });
+    }
   }
 
   let cacheUsuarios = null;
@@ -1016,13 +1116,13 @@ import { CONFIG } from './js/config.js';
         const txtOriginal = btn.innerHTML;
         btn.innerHTML = '⏳ Cargando...';
       
-        if (!cacheUsuarios) cacheUsuarios = await Store.usuariosSala(salaId);
+        if (!cacheUsuarios) cacheUsuarios = await Store.usuarios();
         
         btn.innerHTML = txtOriginal; // Restaurar texto del botón
         
         const prons = predsByPartido[pid] || [];
       
-        const abierto = U.abierto(p, resultados[pid]);
+        const abierto = U.abierto(p, resultados[pid]) === true;
         const L = FIXTURE.equipo(p.local);
         const V = FIXTURE.equipo(p.visitante);
         document.getElementById('modal-pron-titulo').innerHTML = `${L.b} ${U.esc(L.n)} vs ${U.esc(V.n)} ${V.b}`;
@@ -1030,26 +1130,32 @@ import { CONFIG } from './js/config.js';
         if (!prons.length) {
           document.getElementById('modal-pron-lista').innerHTML = '<div class="aviso" style="margin: 16px;">Nadie ha pronosticado aún.</div>';
         } else {
-          const html = prons.sort((a,b) => b.gl - a.gl).map(pr => {
-            const u = cacheUsuarios.find(x => x.uid === pr.uid) || { nombre: 'Desconocido' };
-            const esYo = pr.uid === yo.uid;
-            const iniciales = U.iniciales(u.nombre);
-          
-            let textoGoles = `${pr.gl} – ${pr.gv}`;
-            if (abierto && !esYo) textoGoles = `? – ?`;
-            
-            const cajaGoles = `<div class="goles" ${abierto && !esYo ? 'style="color:var(--tinta-3)"' : ''}>${textoGoles}</div>`;
+          const pronsConNombre = prons.map(pr => {
+            const u = cacheUsuarios.find(x => x.uid === pr.uid) || { nombre: 'Anónimo' };
+            return { ...pr, nombre: u.nombre };
+          });
 
-            return `<div class="pron-item ${esYo ? 'yo' : ''}">
-              <div style="display:flex; align-items:center; gap:10px;">
-                <div class="avatar" style="width:28px; height:28px; font-size:11px; flex-shrink:0;">${iniciales}</div>
-                <div style="display:flex; flex-direction:column;">
-                  <div class="nombre">${U.esc(u.nombre)}${esYo ? ' (Tú)' : ''}</div>
+          const html = pronsConNombre
+            .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+            .map(pr => {
+              const esYo = pr.uid === yo.uid;
+              const iniciales = U.iniciales(pr.nombre);
+
+              let textoGoles = `${pr.gl} – ${pr.gv}`;
+              const ocultar = abierto && !esYo;
+              if (ocultar) textoGoles = `? – ?`;
+              const cajaGoles = `<div class="goles" ${ocultar ? 'style="color:var(--tinta-3)"' : ''}>${textoGoles}</div>`;
+
+              return `<div class="pron-item ${esYo ? 'yo' : ''}">
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <div class="avatar" style="width:28px; height:28px; font-size:11px; flex-shrink:0;">${iniciales}</div>
+                  <div style="display:flex; flex-direction:column;">
+                    <div class="nombre">${U.esc(pr.nombre)}${esYo ? ' (Tú)' : ''}</div>
+                  </div>
                 </div>
-              </div>
-              ${cajaGoles}
-            </div>`;
-          }).join('');
+                ${cajaGoles}
+              </div>`;
+            }).join('');
           document.getElementById('modal-pron-lista').innerHTML = html;
         }
       
@@ -1088,7 +1194,7 @@ import { CONFIG } from './js/config.js';
       }
       const predAnterior = misPred[pid];
       try {
-        await Store.guardarPrediccionSala(salaId, yo.uid, pid, Math.min(CONFIG.MAX_GOLES, Math.max(0, gl)), Math.min(CONFIG.MAX_GOLES, Math.max(0, gv)));
+        await Store.guardarPrediccionSala(yo.uid, pid, Math.min(CONFIG.MAX_GOLES, Math.max(0, gl)), Math.min(CONFIG.MAX_GOLES, Math.max(0, gv)));
         misPred[pid] = { uid: yo.uid, pid, gl, gv };
         U.toast(`Pronóstico guardado: ${gl}–${gv} ⚽`);
         pintarPartidos();
@@ -1204,11 +1310,31 @@ import { CONFIG } from './js/config.js';
     } catch (err) { U.toast(err.message, 'error'); }
   });
 
-  /* --- CARGA Y TIEMPO REAL ------------------------------------------ */
+  /* --- NOTIFICACIONES EN VIVO -------------------------------------- */
+  // Inicializar sistema de notificaciones
+  Notifica.iniciar();
+
+  // Detectar cambios después de cada carga y notificar
+  let primeraCarga = true;
   async function cargar() {
     const [res, aj, mp, todas] = await Promise.all([
-      Store.resultados(), Store.ajustes(), Store.prediccionesSala(salaId, yo.uid), Store.todasPrediccionesSala(salaId)
+      Store.resultados(), Store.ajustes(), Store.prediccionesSala(yo.uid), Store.todasPrediccionesSala()
     ]);
+    
+    // Detectar cambios antes de actualizar el estado
+    if (!primeraCarga) {
+      const cambios = Notifica.detectarCambios(res, yo, FIXTURE.partidos, mp);
+      if (cambios.goles.length || cambios.rojas.length || cambios.finalizados.length || cambios.abiertos.length) {
+        Notifica.notificarCambios(cambios, yo, mp);
+      }
+      // Actualizar el estado de referencia para no volver a notificar lo mismo.
+      Notifica.limpiarEstado(res);
+    } else {
+      // Primera carga: inicializar estado de notificaciones
+      Notifica.limpiarEstado(res);
+      primeraCarga = false;
+    }
+    
     resultados = res; ajustes = aj; misPred = mp;
     // Exponer para que cicloEnVivo use UTCs correctos y detecte partidos en_juego
     window._ajustesLive = aj;
@@ -1224,6 +1350,9 @@ import { CONFIG } from './js/config.js';
     pintarPartidos(); pintarProximoCierre(); pintarResumenYo();
     if (!document.getElementById('tab-grupos').classList.contains('oculto')) pintarGrupos();
   }
+
+  // Iniciar recordatorios de pronósticos pendientes
+  Notifica.iniciarRecordatorios(yo, partidosEf, resultados, misPred);
 
   /* filtro inicial: si hoy no hay partidos, mostrar Jornada 1 */
   const hoyLocal = new Date().toLocaleDateString('en-CA');

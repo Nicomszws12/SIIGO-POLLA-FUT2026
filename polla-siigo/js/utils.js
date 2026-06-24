@@ -75,14 +75,34 @@ const U = {
 
   /* Estado efectivo de un partido según la hora y los datos. */
   estadoPartido(p, res) {
-    if (res && res.estado) return res.estado;            // 'en_juego' | 'finalizado' (puesto por API/admin)
-    if (!p.utc) return 'sin_definir';                    // eliminatoria sin equipos/fecha
-    return (new Date(p.utc) <= new Date()) ? 'cerrado' : 'programado';
+    if (res && res.estado) return res.estado; // 'en_juego' | 'finalizado' | 'aplazado' (puesto por API/admin)
+    if (!p.utc) return 'sin_definir';         // eliminatoria sin equipos/fecha
+
+    // Para partidos con hora NO confirmada, solo cerramos si ya es el día del partido.
+    // Esto evita cierres prematuros si el fixture tiene una fecha pasada por error.
+    if (p.horaOk === false) {
+      const hoy = new Date();
+      const diaPartido = new Date(p.utc);
+      // Comparamos solo la fecha, ignorando la hora.
+      hoy.setHours(0, 0, 0, 0);
+      diaPartido.setHours(0, 0, 0, 0);
+
+      if (hoy.getTime() < diaPartido.getTime()) {
+        return 'programado'; // Si el día del partido aún no ha llegado, sigue programado.
+      }
+    }
+
+    const cierre = new Date(p.utc).getTime() - (5 * 60 * 1000); // Cierra 5 minutos antes del pitazo
+    return (Date.now() >= cierre) ? 'cerrado' : 'programado'; // Si ya pasó la hora de cierre, se cierra.
   },
 
-  abierto(p, res) {                                      // ¿se puede pronosticar?
+  abierto(p, res) { // ¿Se puede pronosticar? Devuelve `true` o el estado que lo impide.
     const e = this.estadoPartido(p, res);
-    return e === 'programado' && p.local && p.visitante;
+    if (e === 'programado' && p.local && p.visitante) {
+      return true; // Sí se puede pronosticar.
+    }
+    // No se puede pronosticar, devuelve la razón.
+    return e;
   },
 
   /* --- Dinero ----------------------------------------------- */

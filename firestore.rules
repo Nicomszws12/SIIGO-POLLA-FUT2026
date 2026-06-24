@@ -138,6 +138,14 @@ service cloud.firestore {
             && get(/databases/$(database)/documents/salas/$(resource.data.salaId)).data.adminUid == request.auth.uid);
     }
 
+    // ---------- puntos_manuales/{uid__pid} -----------------------
+    // Cualquier usuario autenticado puede ver los puntos manuales en la tabla.
+    // Solo los administradores pueden crear o quitar ajustes manuales de puntos.
+    match /puntos_manuales/{docId} {
+      allow read: if conectado();
+      allow write: if esAdmin();
+    }
+
     // ---------- intentos_trampa/{docId} -------------------------
     // Cualquier usuario autenticado puede registrar un intento.
     // Solo admins pueden leer o modificar.

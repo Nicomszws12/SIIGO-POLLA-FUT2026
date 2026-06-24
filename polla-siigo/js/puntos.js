@@ -38,9 +38,14 @@ const Puntos = {
     return res.gl > res.gv ? final.local : final.visitante;
   },
 
-  /* Tabla de posiciones de la polla. */
-  tabla(usuarios, todasPred, resultados, ajustes) {
+  /* Tabla de posiciones de la polla.
+     puntosManuales: array de { uid, pid, pts, razon } que se suman al total. */
+  tabla(usuarios, todasPred, resultados, ajustes, puntosManuales) {
     const campeonReal = this.campeon(resultados, ajustes);
+    const manualPorUid = {};
+    (puntosManuales || []).forEach(pm => {
+      manualPorUid[pm.uid] = (manualPorUid[pm.uid] || 0) + (Number(pm.pts) || 0);
+    });
     const filas = usuarios
       .filter(u => u.estado === 'activo')
       .map(u => {
@@ -57,6 +62,9 @@ const Puntos = {
         });
         let bono = 0;
         if (campeonReal && u.campeon === campeonReal) { bono = CONFIG.REGLAS.bonusCampeon; pts += bono; }
+        // Sumar puntos manuales (ajustes del admin)
+        const ptsManual = manualPorUid[u.uid] || 0;
+        pts += ptsManual;
 
         // Racha: partidos finalizados consecutivos (más reciente primero) con pts > 0
         const finalizados = FIXTURE.partidos

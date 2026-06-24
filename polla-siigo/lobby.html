@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mis Salas — Polla Siigo 2026</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇨🇴</text></svg>">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="css/estilos.css">
   <style>
     /* TEMA ESPECIAL: DÍA DE PARTIDO COLOMBIA (borrar mañana) */
@@ -181,7 +182,10 @@ import { CONFIG } from './js/config.js';
             </div>
             <span style="font-size:20px;color:var(--tinta-2); margin-left: auto;">▶</span>
           </a>
-          ${esMiAdmin ? `<a href="${linkAdmin}" class="boton boton--fantasma boton--mini" title="Configurar sala" style="flex-shrink: 0;">⚙️</a>` : ''}
+          ${esMiAdmin ? `
+            <a href="${linkAdmin}" class="boton boton--fantasma boton--mini" title="Configurar sala" style="flex-shrink: 0;">⚙️</a>
+            <button class="boton boton--peligro boton--mini" data-eliminar-sala="${U.esc(s.salaId)}" title="Eliminar sala" style="flex-shrink: 0; background:rgba(224,53,75,0.2); border-color:rgba(224,53,75,0.4); color:#e0354b;">🗑</button>
+          ` : ''}
         </div>`;
     }).join('');
 
@@ -227,6 +231,28 @@ import { CONFIG } from './js/config.js';
     } catch (err) { U.toast(err.message, 'error'); }
     btn.disabled = false;
   };
+
+  // Eliminar sala (solo el admin/organizador)
+  document.getElementById('lista-salas').addEventListener('click', async e => {
+    const btn = e.target.closest('[data-eliminar-sala]');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const salaId = btn.dataset.eliminarSala;
+    const nombre = btn.closest('.sala-card')?.querySelector('.sala-info__nombre')?.textContent?.trim() || 'esta sala';
+    if (!confirm(`¿Estás seguro de eliminar "${nombre}"?\n\nSe eliminarán todos los datos de la sala: miembros, predicciones y configuración. Esta acción no se puede deshacer.`)) return;
+    try {
+      await Store.eliminarSala(salaId);
+      U.toast(`Sala "${nombre}" eliminada.`, 'ok');
+      await renderSalas();
+      // Si la sala activa era la eliminada, volver a la principal
+      if (localStorage.getItem('salaActiva') === salaId) {
+        localStorage.setItem('salaActiva', 'siigo');
+      }
+    } catch (err) {
+      U.toast(err.message, 'error');
+    }
+  });
 
   await renderSalas();
 })();

@@ -7,8 +7,9 @@
   <link rel="icon" href="icons/icon-192.png" type="image/png">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0846f0">
-  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="css/estilos.css">
 </head>
 <body>
@@ -220,6 +221,52 @@
   </div>
 
   <div class="panel panel--relleno" style="margin-top:26px">
+    <h2>🎛 Ajuste Manual de Puntos</h2>
+    <p class="sub">Asigna o quita puntos extra a cualquier participante por cualquier partido.
+      Útil para compensar cuando un partido cambió de hora y no se pudo pronosticar.
+      Los puntos se suman al total automático en la tabla.</p>
+    <div class="rejilla rejilla--2" style="gap:24px;align-items:start">
+      <div>
+        <form id="f-puntos-manuales">
+          <div class="campo">
+            <label for="pm-usuario">Participante</label>
+            <select id="pm-usuario" class="mini-input" required>
+              <option value="">— Selecciona —</option>
+            </select>
+          </div>
+          <div class="campo">
+            <label for="pm-partido">Partido</label>
+            <select id="pm-partido" class="mini-input" required>
+              <option value="">— Selecciona —</option>
+            </select>
+          </div>
+          <div class="campo">
+            <label for="pm-pts">Puntos (+ / −)</label>
+            <input id="pm-pts" class="mini-input" type="number" required placeholder="Ej: 3, −5, 1">
+            <p class="ayuda">Puedes poner puntos positivos o negativos.</p>
+          </div>
+          <div class="campo">
+            <label for="pm-razon">Razón del ajuste</label>
+            <input id="pm-razon" class="mini-input" type="text" required placeholder="Ej: Partido reprogramado, no se pudo pronosticar">
+            <p class="ayuda">Esta razón se muestra al pasar el mouse sobre los puntos extra.</p>
+          </div>
+          <button type="submit" class="boton boton--verde">Guardar ajuste</button>
+          <span id="pm-estado" class="ayuda" style="margin-left:12px"></span>
+        </form>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <strong style="font-size:13px;color:var(--tinta-2)">Ajustes aplicados</strong>
+          <button class="boton boton--fantasma boton--mini" id="b-pm-refresh" type="button">🔄</button>
+        </div>
+        <div id="pm-lista-aplicados" class="codigo" style="max-height:260px;overflow:auto;font-size:12px">
+          <span class="sub">Sin ajustes manuales.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel panel--relleno" style="margin-top:26px">
     <h2>🎨 Tema Especial (Prueba)</h2>
     <p class="sub">Activa o desactiva el tema de Colombia para ver cómo se ve.</p>
     <div class="fila-flex">
@@ -324,6 +371,10 @@ import { CONFIG } from './js/config.js';
   async function cargar() {
     [resultados, ajustes] = await Promise.all([Store.resultados(), Store.ajustes()]);
     pintarRes(); pintarCal(); pintarGente(); pintarPrevios(); pintarControl();
+    // Refrescar panel de ajuste manual de puntos
+    window._usuariosCache = await Store.usuariosSala(salaId);
+    poblarSelectUsuarios();
+    await cargarPuntosManuales();
   }
 
   /* ============ TABS ============ */
@@ -375,8 +426,10 @@ import { CONFIG } from './js/config.js';
           <select class="mini-input" data-r="estado">
             <option value="">Sin empezar</option>
             <option value="en_juego" ${r.estado === 'en_juego' ? 'selected' : ''}>🔴 En juego</option>
+            <option value="aplazado" ${r.estado === 'aplazado' ? 'selected' : ''}>⏸️ Aplazado</option>
             <option value="finalizado" ${r.estado === 'finalizado' ? 'selected' : ''}>✅ Finalizado</option>
           </select>
+          <input class="mini-input" type="text" data-r="motivoAplazamiento" value="${r.motivoAplazamiento ?? ''}" placeholder="Motivo del aplazamiento" style="width:200px" title="Motivo por el que se aplazó el partido">
           <input class="mini-input" type="number" min="0" max="130" data-r="minuto" value="${r.minuto ?? ''}" placeholder="min" style="width:70px" title="Minuto de juego">
           ${esElim ? `
           <select class="mini-input" data-r="pen" title="Si empataron: quién avanzó por penales">
@@ -570,12 +623,26 @@ import { CONFIG } from './js/config.js';
     const pid = card.dataset.pid;
     const val = s => { const el = card.querySelector(`[data-c="${s}"]`); return el ? el.value : undefined; };
     const aj = {};
+    const tieneNuevoUtc = !!val('utc');
     if (val('utc')) aj.utc = new Date(val('utc') + ':00Z').toISOString();
     if (val('sede') !== undefined) aj.sede = val('sede').trim();
     if (val('estadio') !== undefined) aj.estadio = val('estadio').trim();
     if (val('local') !== undefined) aj.local = val('local') || null;
     if (val('visitante') !== undefined) aj.visitante = val('visitante') || null;
-    try { await Store.guardarAjuste(pid, aj); U.toast('Calendario actualizado 📅'); await cargar(); }
+    try {
+      await Store.guardarAjuste(pid, aj);
+
+      // Si se cambió la hora/fecha y el partido NO está finalizado,
+      // limpiar el resultado para reabrirlo (permite pronosticar y poner marcador).
+      const resPartido = resultados[pid] || {};
+      if (tieneNuevoUtc && resPartido.estado !== 'finalizado') {
+        await Store.guardarResultado(pid, {});
+        U.toast('🗝 Partido reabierto al cambiar la fecha.');
+      }
+
+      U.toast('Calendario actualizado 📅');
+      await cargar();
+    }
     catch (err) { U.toast(err.message, 'error'); }
   });
 
@@ -610,10 +677,10 @@ import { CONFIG } from './js/config.js';
 
   document.getElementById('b-resumen').onclick = async function () {
     const txt = document.getElementById('prev-resumen').textContent;
-    const [usuarios, todas] = await Promise.all([Store.usuarios(), Store.todasPredicciones()]);
+    const [usuarios, todas, puntosManuales] = await Promise.all([Store.usuarios(), Store.todasPredicciones(), Store.puntosManuales()]);
     const activos = usuarios.filter(u => u.estado === 'activo');
     if (!activos.length) { U.toast('No hay participantes activos.', 'error'); return; }
-    const filas = Puntos.tabla(usuarios, todas, resultados, ajustes);
+    const filas = Puntos.tabla(usuarios, todas, resultados, ajustes, puntosManuales);
     this.disabled = true;
     const est = document.getElementById('estado-resumen');
     const r = await Email.resumen(activos, txt, filas, (n, tot) => est.textContent = `Procesando ${n}/${tot}…`);
@@ -647,8 +714,8 @@ import { CONFIG } from './js/config.js';
   };
 
   document.getElementById('b-publicar').onclick = async () => {
-    const [usuarios, todas] = await Promise.all([Store.usuarios(), Store.todasPredicciones()]);
-    const filas = Puntos.tabla(usuarios, todas, resultados, ajustes);
+    const [usuarios, todas, puntosManuales] = await Promise.all([Store.usuarios(), Store.todasPredicciones(), Store.puntosManuales()]);
+    const filas = Puntos.tabla(usuarios, todas, resultados, ajustes, puntosManuales);
     await Store.publicarTabla(filas);
     U.toast('Tabla oficial publicada 📌');
   };
@@ -665,6 +732,97 @@ import { CONFIG } from './js/config.js';
     localStorage.removeItem('pollaSiigo'); sessionStorage.clear();
     location.href = 'index.html';
   };
+
+  /* ============ AJUSTE MANUAL DE PUNTOS ============ */
+  let _puntosManuales = [];
+
+  async function cargarPuntosManuales() {
+    _puntosManuales = await Store.puntosManuales();
+    pintarPuntosManuales();
+    poblarSelectPartidos();
+  }
+
+  function poblarSelectPartidos() {
+    const sel = document.getElementById('pm-partido');
+    sel.innerHTML = '<option value="">— Selecciona —</option>';
+    partidosEf()
+      .filter(p => p.local && p.visitante)
+      .sort((a, b) => (a.utc || '9').localeCompare(b.utc || '9'))
+      .forEach(p => {
+        const L = FIXTURE.equipo(p.local), V = FIXTURE.equipo(p.visitante);
+        sel.innerHTML += `<option value="${p.id}">${p.id} · ${L.b} ${L.n} vs ${V.n} ${V.b}</option>`;
+      });
+  }
+
+  function pintarPuntosManuales() {
+    const caja = document.getElementById('pm-lista-aplicados');
+    if (!_puntosManuales.length) {
+      caja.innerHTML = '<span class="sub">Sin ajustes manuales.</span>';
+      return;
+    }
+    const usuarios = (window._usuariosCache || []);
+    caja.innerHTML = _puntosManuales.map(pm => {
+      const u = usuarios.find(x => x.uid === pm.uid);
+      const nom = u ? u.nombre : pm.uid.slice(0, 8);
+      const p = FIXTURE.partidos.find(x => x.id === pm.pid);
+      const L = p && p.local ? FIXTURE.equipo(p.local) : null;
+      const V = p && p.visitante ? FIXTURE.equipo(p.visitante) : null;
+      const partido = (L && V) ? `${L.b} ${L.n} vs ${V.n}` : (pm.pid || '?');
+      const signo = Number(pm.pts) > 0 ? '+' : '';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+        <div style="flex:1;min-width:0">
+          <div><b>${U.esc(nom)}</b> · <span style="color:${Number(pm.pts) >= 0 ? 'var(--verde-claro)' : 'var(--rojo)'}">${signo}${pm.pts} pts</span></div>
+          <div style="font-size:11px;color:var(--tinta-3)">${U.esc(partido)}</div>
+          <div style="font-size:11px;color:var(--tinta-3)" title="${U.esc(pm.razon || '')}">💬 ${U.esc(pm.razon || '')}</div>
+        </div>
+        <button class="boton boton--fantasma boton--mini" data-pm-quitar="${pm.uid}|${pm.pid}" type="button" style="flex-shrink:0" title="Quitar este ajuste">✕</button>
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('f-puntos-manuales').addEventListener('submit', async e => {
+    e.preventDefault();
+    const uid = document.getElementById('pm-usuario').value;
+    const pid = document.getElementById('pm-partido').value;
+    const pts = parseInt(document.getElementById('pm-pts').value, 10);
+    const razon = document.getElementById('pm-razon').value.trim();
+    if (!uid || !pid || isNaN(pts) || !razon) { U.toast('Completa todos los campos.', 'error'); return; }
+    const est = document.getElementById('pm-estado');
+    try {
+      await Store.guardarPuntoManual(uid, pid, pts, razon);
+      U.toast(`Ajuste guardado: ${pts > 0 ? '+' : ''}${pts} pts a ${window._usuariosCache.find(u => u.uid === uid)?.nombre || uid}`);
+      est.textContent = '✓ Guardado';
+      document.getElementById('pm-pts').value = '';
+      document.getElementById('pm-razon').value = '';
+      await cargarPuntosManuales();
+    } catch (err) { U.toast(err.message, 'error'); est.textContent = '✕ Error'; }
+  });
+
+  document.getElementById('pm-lista-aplicados').addEventListener('click', async e => {
+    const btn = e.target.closest('[data-pm-quitar]');
+    if (!btn) return;
+    const [uid, pid] = btn.dataset.pmQuitar.split('|');
+    try {
+      await Store.quitarPuntoManual(uid, pid);
+      U.toast('Ajuste quitado.');
+      await cargarPuntosManuales();
+    } catch (err) { U.toast(err.message, 'error'); }
+  });
+
+  document.getElementById('b-pm-refresh').onclick = async () => {
+    window._usuariosCache = await Store.usuariosSala(salaId);
+    poblarSelectUsuarios();
+    await cargarPuntosManuales();
+    U.toast('Lista actualizada.');
+  };
+
+  function poblarSelectUsuarios() {
+    const sel = document.getElementById('pm-usuario');
+    sel.innerHTML = '<option value="">— Selecciona —</option>';
+    (window._usuariosCache || []).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')).forEach(u => {
+      sel.innerHTML += `<option value="${u.uid}">${U.esc(u.nombre)} ${u.area ? '· ' + U.esc(u.area) : ''}</option>`;
+    });
+  }
 
   /* ============ PRONÓSTICOS ============ */
   let subPron = 'todos';
@@ -693,6 +851,8 @@ import { CONFIG } from './js/config.js';
       ? `<span class="etiqueta etiqueta--fin" style="font-size:16px;padding:4px 10px">✅ ${res.gl} – ${res.gv}</span>`
       : res.estado === 'en_juego'
       ? `<span class="etiqueta" style="background:var(--rojo);color:#fff;font-size:13px">🔴 En juego ${res.minuto ? res.minuto + "'" : ''}</span>`
+      : res.estado === 'aplazado'
+      ? `<span class="etiqueta" style="background:var(--dorado);color:#fff;font-size:13px">⏸️ Aplazado</span>`
       : estado === 'cerrado'
       ? `<span class="etiqueta">🔒 Cerrado</span>`
       : `<span class="etiqueta" style="color:var(--tinta-3)">📅 ${p.utc ? U.horaLocal(p.utc) : 'sin hora'}</span>`;
@@ -786,6 +946,8 @@ import { CONFIG } from './js/config.js';
             ? `<span class="etiqueta etiqueta--fin">✅ ${res.gl}–${res.gv}</span>`
             : res.estado === 'en_juego'
             ? `<span class="etiqueta" style="background:var(--rojo);color:#fff">🔴 Vivo</span>`
+            : res.estado === 'aplazado'
+            ? `<span class="etiqueta" style="background:var(--dorado);color:#fff">⏸️ Aplazado</span>`
             : estado === 'cerrado'
             ? `<span class="etiqueta">🔒</span>`
             : `<span class="etiqueta" style="color:var(--tinta-3);background:transparent;border-color:rgba(255,255,255,.1)">${p.utc ? U.horaLocal(p.utc) : '?'}</span>`;
@@ -917,4 +1079,3 @@ import { CONFIG } from './js/config.js';
 })();
 </script>
 </body>
-</html>

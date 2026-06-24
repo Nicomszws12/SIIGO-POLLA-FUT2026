@@ -94,7 +94,7 @@ const Email = {
 
   /* Texto listo para la plantilla de recordatorio: partidos que
      aún están abiertos en las próximas `horas`. */
-  textoProximosPartidos(ajustes, resultados, horas = 30, salaId = 'siigo') {
+  textoProximosPartidos(ajustes, resultados, horas = 30) {
     const limite = Date.now() + horas * 36e5;
     return FIXTURE.partidos
       .map(p => Puntos.conAjustes(p, ajustes))

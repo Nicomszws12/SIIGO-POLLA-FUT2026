@@ -44,9 +44,12 @@ export const CONFIG = {
      plan gratuito 100 peticiones/día.
   ---------------------------------------------------------- */
   API_FUTBOL: {
-    proxyUrl: 'https://v3.football.api-sports.io', // Conexión directa a la API
-    apiKey: '47169c301b3ef4359062e17f45a994fa',   // Llave oficial de API-Football
-    intervaloSegundos: 60,        // frecuencia de refresco con partidos en vivo
+    // El proxy se usa para la sincronización de marcadores y datos.
+    proxyUrl: 'https://poya-siigo.vercel.app', // 👈 URL del proxy en Vercel
+    // La API Key ya no es necesaria aquí. El nuevo widget se autentica por dominio
+    // y el proxy de Vercel tiene la llave guardada como secreto. ¡Más seguro!
+    apiKey: '',
+    intervaloSegundos: 10,        // Frecuencia de refresco en segundos. ¡Aún más rápido!
     sincronizaCalendario: true    // permite al admin traer fechas/horas oficiales
   },
 
@@ -57,7 +60,8 @@ export const CONFIG = {
     grupos:        { exacto: 3, resultado: 1 },  // marcador exacto / acertar ganador o empate
     eliminatorias: { exacto: 5, resultado: 2 },  // se califica el marcador a los 90' (+prórroga si la hay, sin penales)
     bonusCampeon: 10,                            // por acertar el campeón (se elige antes del primer partido)
-    cierreCampeonUTC: '2026-06-19T23:59:59Z'     // Extendido al 19 de junio 2026 (23:59 Colombia)
+    cierreCampeonUTC: '2026-06-19T23:59:59Z',     // Extendido al 19 de junio 2026 (23:59 Colombia)
+    verPronosticosAntesDeCierre: false           // Permite ver pronósticos de otros antes del cierre. Poner en `true` para permitirlo.
   },
 
   /* Desempates, en orden: 1) puntos, 2) marcadores exactos,
@@ -96,7 +100,7 @@ export const CONFIG = {
      el proxy que se conecta a un modelo como Claude de Anthropic.
   ---------------------------------------------------------- */
   IA: {
-    proxyUrl: '', // 👈 Pega aquí la URL de tu Worker (ej: https://ia-polla.TU-USUARIO.workers.dev)
+    proxyUrl: 'https://poya-siigo.vercel.app/api/ia', // 👈 URL del proxy de IA en Vercel
   },
 
   /* ----------------------------------------------------------

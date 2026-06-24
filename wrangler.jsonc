@@ -1,5 +1,5 @@
 {
   "name": "polla-proxy",
   "compatibility_date": "2026-06-11",
-  "main": "polla-siigo/proxy/cloudflare-worker.js"
+  "main": "proxy/cloudflare-worker.js"
 }

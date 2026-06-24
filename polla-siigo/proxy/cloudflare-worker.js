@@ -19,58 +19,53 @@
    ============================================================ */
 
 const API_BASE = 'https://v3.football.api-sports.io';
-const LIGA_MUNDIAL = 1;        // id de la Copa del Mundo en API-Football
-const TEMPORADA = 2026;
 const CACHE_SEGUNDOS = 30;
 
 export default {
   async fetch(peticion, env, ctx) {
     const url = new URL(peticion.url);
     const origen = peticion.headers.get('Origin') || '';
-    const permitido = (env.ORIGEN_PERMITIDO || '*');
+    const permitido = (env.ORIGEN_PERMITIDO || ''); // No permitir '*' por defecto por seguridad
     const cors = {
       'Access-Control-Allow-Origin':
-        permitido === '*' ? '*' : (origen === permitido ? origen : permitido),
+        (origen === permitido) ? origen : '', // Solo permitir el origen exacto
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
       'Vary': 'Origin'
     };
 
     if (peticion.method === 'OPTIONS') return new Response(null, { headers: cors });
+
     if (peticion.method !== 'GET') {
       return new Response('Método no permitido', { status: 405, headers: cors });
     }
-    if (url.pathname !== '/fixtures') {
-      return new Response(JSON.stringify({ error: 'Ruta no encontrada. Usa /fixtures' }),
-        { status: 404, headers: { ...cors, 'Content-Type': 'application/json' } });
-    }
+
     if (!env.API_FOOTBALL_KEY) {
       return new Response(JSON.stringify({ error: 'Falta el secreto API_FOOTBALL_KEY en el Worker.' }),
         { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
     }
 
-    /* Parámetros que el navegador puede pasar (lista blanca). */
-    const upstream = new URL(API_BASE + '/fixtures');
-    upstream.searchParams.set('league', String(LIGA_MUNDIAL));
-    upstream.searchParams.set('season', String(TEMPORADA));
-    for (const p of ['date', 'live']) {
-      if (url.searchParams.has(p)) upstream.searchParams.set(p, url.searchParams.get(p));
-    }
+    // Construir la URL de la API de forma dinámica
+    const upstreamUrl = new URL(API_BASE + url.pathname);
+    url.searchParams.forEach((value, key) => {
+      upstreamUrl.searchParams.set(key, value);
+    });
 
-    /* Caché de 30 s: muchos espectadores, una sola consulta real. */
+    // Lógica de caché genérica
     const cache = caches.default;
-    const claveCache = new Request(upstream.toString(), { method: 'GET' });
+    const claveCache = new Request(upstreamUrl.toString(), { method: 'GET' });
     let respuesta = await cache.match(claveCache);
 
     if (!respuesta) {
-      const r = await fetch(upstream.toString(), {
+      const r = await fetch(upstreamUrl.toString(), {
         headers: { 'x-apisports-key': env.API_FOOTBALL_KEY }
       });
       const cuerpo = await r.text();
       respuesta = new Response(cuerpo, {
         status: r.status,
         headers: {
-          'Content-Type': 'application/json',
+          ...r.headers, // Pasar las cabeceras originales
+          'Content-Type': r.headers.get('Content-Type') || 'application/json',
           'Cache-Control': `public, max-age=${CACHE_SEGUNDOS}`
         }
       });
@@ -78,6 +73,7 @@ export default {
     }
 
     const final = new Response(respuesta.body, respuesta);
+    // Aplicar cabeceras CORS a la respuesta final (sea de caché o de red)
     Object.entries(cors).forEach(([k, v]) => final.headers.set(k, v));
     return final;
   }

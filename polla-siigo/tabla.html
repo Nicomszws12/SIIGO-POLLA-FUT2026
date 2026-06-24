@@ -7,8 +7,9 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0846f0">
-  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="css/estilos.css">
 </head>
 <body>
@@ -21,7 +22,6 @@
       <a href="tabla.html" class="activo">Tabla</a>
       <a href="cuentas.html">Cuentas</a>
       <a href="reglas.html">Reglas</a>
-      <a href="lobby.html">🏟 Salas</a>
     </nav>
     <div class="usuario-mini">
       <div class="avatar" id="avatar">?</div>
@@ -29,12 +29,6 @@
     </div>
   </div>
 </header>
-
-<div id="sala-bar" style="background:rgba(255,255,255,.04);border-bottom:1px solid var(--linea);padding:7px 24px;display:none;align-items:center;gap:10px;font-size:13px">
-  <span style="color:var(--tinta-3)">Liga activa:</span>
-  <b id="sala-bar-nombre" style="color:var(--dorado)">—</b>
-  <a href="lobby.html" class="boton boton--fantasma boton--mini" style="margin-left:auto">⇄ Cambiar sala</a>
-</div>
 
 <main class="contenedor">
 
@@ -89,31 +83,13 @@ import { CONFIG } from './js/config.js';
     document.getElementById('nav').appendChild(a);
   }
 
-  /* --- sala activa -------------------------------------------- */
-  const salaId = new URLSearchParams(location.search).get('sala') || localStorage.getItem('salaActiva') || 'siigo';
-  if (salaId !== 'siigo') {
-    const bar = document.getElementById('sala-bar');
-    bar.style.display = 'flex';
-    Store.salaPorId(salaId).then(sala => {
-      if (!sala) return;
-      document.getElementById('sala-bar-nombre').textContent = sala.nombre;
-      const logoTexto = document.getElementById('logo-texto');
-      if (logoTexto) logoTexto.innerHTML = `${U.esc(sala.nombre)} <small>Mundial 2026</small>`;
-    });
-  }
-  // Mantener salaId en los enlaces de nav
-  ['app.html','cuentas.html', 'admin.html'].forEach(page => {
-    const a = document.querySelector(`a[href="${page}"]`);
-    if (a && salaId !== 'siigo') a.href = `${page}?sala=${salaId}`;
-  });
-
   let filas = [], filtro = '';
 
   async function cargar() {
-    const [usuarios, todas, resultados, ajustes] = await Promise.all([
-      Store.usuariosSala(salaId), Store.todasPrediccionesSala(salaId), Store.resultados(), Store.ajustes()
+    const [usuarios, todas, resultados, ajustes, puntosManuales] = await Promise.all([
+      Store.usuariosSala(), Store.todasPrediccionesSala(), Store.resultados(), Store.ajustes(), Store.puntosManuales()
     ]);
-    filas = Puntos.tabla(usuarios, todas, resultados, ajustes);
+    filas = Puntos.tabla(usuarios, todas, resultados, ajustes, puntosManuales);
     document.getElementById('nota-tabla').textContent =
       'Cálculo en vivo con los resultados cargados hasta ahora.';
     pintar();
@@ -124,11 +100,12 @@ import { CONFIG } from './js/config.js';
 
     /* Podio (siempre con la tabla general) */
     const podio = document.getElementById('podio');
-    const medallas = ['🥇', '🥈', '🥉'];
-    podio.innerHTML = [1, 0, 2].map(i => {
+    const medallas = ['🥇', '🥈', '🥉']; // 1st, 2nd, 3rd
+    podio.innerHTML = [0, 1, 2].map(i => {
       const f = filas[i];
       if (!f) return '<div></div>';
-      return `<div class="podio__caja ${i === 0 ? 'podio__caja--1' : ''}">
+      // La clase podio__caja--1, --2, --3 se usa para estilizar y ordenar con CSS grid
+      return `<div class="podio__caja podio__caja--${i + 1}">
         <div class="medalla">${medallas[i]}</div>
         <div class="quien">${U.esc(f.nombre)}</div>
         <div class="pts">${f.pts} pts</div>
@@ -187,7 +164,7 @@ import { CONFIG } from './js/config.js';
     if (!usuario) return;
 
     const [todas, resultados, ajustes] = await Promise.all([
-      Store.todasPrediccionesSala(salaId), Store.resultados(), Store.ajustes()
+      Store.todasPrediccionesSala(), Store.resultados(), Store.ajustes()
     ]);
     const susPreds = todas[uid] || {};
 
@@ -207,10 +184,12 @@ import { CONFIG } from './js/config.js';
         const V = FIXTURE.equipo(p.visitante);
         const estado = U.estadoPartido(p, res);
 
-        // Solo mostrar pronósticos de partidos que ya iniciaron o finalizaron.
-        // Los admins ven todos; los jugadores solo los de partidos no programados.
-        const partidoIniciado = estado !== 'programado' && estado !== 'sin_definir';
-        if (!pr || (!partidoIniciado && yo.rol !== 'admin')) return null;
+        // Lógica de visibilidad:
+        // - Si no hay pronóstico, no se muestra.
+        // - Si el usuario no es admin, solo puede ver pronósticos de partidos EN VIVO.
+        // - Los admins ven todo.
+        if (!pr) return null;
+        if (yo.rol !== 'admin' && estado !== 'en_juego') return null;
 
         let color = 'var(--tinta)';
         let icono = '⏳';
@@ -218,9 +197,13 @@ import { CONFIG } from './js/config.js';
           const cal = Puntos.calificar(pr, res, p.fase);
           color = cal.tipo === 'exacto' ? 'var(--verde-claro)' : (cal.tipo === 'resultado' ? 'var(--dorado)' : 'var(--rojo)');
           icono = cal.tipo === 'exacto' ? '🎯' : (cal.tipo === 'resultado' ? '✔' : '❌');
-        } else if (estado === 'en_juego' || estado === 'cerrado') {
-          icono = '🔒';
+        } else if (estado === 'en_juego') {
+          icono = '🔴';
+        } else if (estado === 'cerrado') {
+          icono = '🔒'; // Cerrado (ya no se puede pronosticar)
         }
+
+        const fechaPronostico = pr.t ? `${U.diaLocal(pr.t)} · ${U.horaLocal(pr.t)}` : '';
 
         return `
           <div style="background:rgba(0,0,0,0.15); border:1px solid var(--linea); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:8px;">
@@ -232,6 +215,7 @@ import { CONFIG } from './js/config.js';
               <div style="text-align:center;">
                 <div style="font-size:10px; color:var(--tinta-3); letter-spacing:1px; text-transform:uppercase;">Pronóstico</div>
                 <div style="font-size:18px; font-family:var(--fuente-marcador); font-weight:900; color:${color}; margin-top:2px;">${pr.gl} – ${pr.gv}</div>
+                ${fechaPronostico ? `<div style="font-size:10px; color:var(--tinta-3); margin-top:4px;">${fechaPronostico}</div>` : ''}
               </div>
               ${res && res.estado === 'finalizado' ? `
               <div style="text-align:center; border-left:1px solid var(--linea); padding-left:15px;">
@@ -247,7 +231,7 @@ import { CONFIG } from './js/config.js';
       }).filter(Boolean).slice(0, 20);
 
     const nota = yo.rol !== 'admin'
-      ? '<span style="font-size:12px; color:var(--tinta-3)">Solo se muestran partidos ya iniciados 🔒</span>'
+      ? '<span style="font-size:12px; color:var(--tinta-3)">Solo se muestran partidos en vivo 🔴</span>'
       : `<span style="font-size:12px; color:var(--tinta-3);">Mostrando ${lista.length} partidos</span>`;
 
     const trDetalle = document.createElement('tr');
